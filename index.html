@@ -184,6 +184,10 @@ main{max-width:1240px; margin:0 auto; padding:38px 34px 100px;}
 
 /* ---------- geração / evidência ---------- */
 .gen-shell{display:grid; grid-template-columns:1fr 360px; gap:18px; align-items:start;}
+/* Sem isso, um item de grid com descendente de largura fixa (a prévia em escala real do
+   documento, 21cm) usa o próprio min-width:auto padrão do grid e estoura a coluna,
+   empurrando a página inteira para o lado em telas estreitas. */
+.gen-shell > *, .qa-shell > *, .client-shell > *, .admin-shell > *, .learn-grid > *{min-width:0;}
 .doc-frame{
   background:var(--paper); color:var(--paper-ink); border-radius:14px; padding:40px 44px;
   font-family:var(--serif); font-size:13.5px; line-height:1.85; box-shadow:var(--shadow); position:relative;
@@ -281,6 +285,30 @@ main{max-width:1240px; margin:0 auto; padding:38px 34px 100px;}
   font-family:var(--mono); font-size:10px; color:var(--ink-faint); border:1px solid var(--line-strong);
   padding:4px 10px; border-radius:20px; display:inline-block; margin-bottom:18px;
 }
+.mock-banner{
+  display:flex; gap:12px; align-items:flex-start; border:1px solid var(--line); border-left:4px solid var(--amber);
+  border-radius:0 12px 12px 0; padding:14px 18px; background:rgba(217,164,65,.08); margin-bottom:22px;
+}
+.mock-banner .ico{font-size:16px; line-height:1;}
+.mock-banner b{color:var(--ink); display:block; margin-bottom:3px; font-size:13px;}
+.mock-banner span{font-size:12px; color:var(--ink-dim); line-height:1.55;}
+.tab-mock-dot{
+  display:inline-block; width:5px; height:5px; border-radius:50%; background:var(--amber);
+  margin-left:5px; vertical-align:middle; box-shadow:0 0 5px var(--amber);
+}
+.stepper{display:flex; align-items:center; flex-wrap:wrap; row-gap:10px; margin-bottom:24px;}
+.step{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-faint); white-space:nowrap;}
+.step-dot{
+  width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line-strong); display:flex;
+  align-items:center; justify-content:center; font-family:var(--mono); font-size:11px; flex-shrink:0;
+  background:var(--bg-raise);
+}
+.step.done .step-dot{background:var(--green); border-color:var(--green); color:#fff;}
+.step.atual .step-dot{border-color:var(--cyan); color:var(--cyan);}
+.step.atual .step-label{color:var(--ink); font-weight:500;}
+.step.done .step-label{color:var(--ink-dim);}
+.step-line{width:28px; height:1px; background:var(--line-strong); margin:0 10px; flex-shrink:0;}
+@media(max-width:600px){ .step-line{display:none;} .stepper{flex-direction:column; align-items:flex-start; gap:8px;} }
 .sim-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px;}
 .sim-card{background:var(--bg-raise); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:var(--shadow);}
 .sim-card .n{font-family:var(--mono); font-size:26px; font-weight:600; color:var(--cyan);}
@@ -336,11 +364,12 @@ footer{max-width:1240px; margin:60px auto 0; padding:24px 34px; border-top:1px s
 
 @media(max-width:980px){
   main{padding:28px 18px;}
-  .gen-shell, .qa-shell, .learn-grid{grid-template-columns:1fr;}
+  .gen-shell, .qa-shell, .learn-grid, .client-shell, .admin-shell{grid-template-columns:1fr;}
   .q-row{grid-template-columns:1fr; gap:6px;}
-  .case-row{grid-template-columns:1fr; gap:6px;}
+  .case-row, .user-row{grid-template-columns:1fr; gap:6px;}
   .tabs{overflow-x:auto;}
   .dropzone{flex-direction:column; text-align:center;}
+  .client-form{position:static;}
 }
 
 /* ---------- autenticação ---------- */
@@ -448,8 +477,8 @@ html[data-theme="dark"] .auth-screen{
   <div class="tabs" id="tabs">
     <div class="tab active" data-view="fila">Fila</div>
     <div class="tab" data-view="geracao">Geração</div>
-    <div class="tab" data-view="similares">Casos similares</div>
-    <div class="tab" data-view="qualidade">Portão de qualidade</div>
+    <div class="tab" data-view="similares" title="Protótipo: dados ilustrativos, não conectado a processos reais">Casos similares<span class="tab-mock-dot"></span></div>
+    <div class="tab" data-view="qualidade" title="Protótipo: dados ilustrativos, não conectado a processos reais">Portão de qualidade<span class="tab-mock-dot"></span></div>
     <div class="tab" data-view="analises">Análises</div>
     <div class="tab" data-view="padroes">Padrões por cliente</div>
     <div class="tab" data-view="admin" id="tabAdmin" style="display:none">Admin</div>
@@ -487,6 +516,8 @@ html[data-theme="dark"] .auth-screen{
       <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
     </div>
 
+    <div class="callout" style="margin-bottom:22px;"><b>Sobre os dados enviados.</b> A leitura do arquivo acontece no navegador. Para a extração automática e a adaptação de texto por IA, trechos do conteúdo da petição são enviados à API da Anthropic (processados, não armazenados por ela para treinamento, segundo a política de uso da API). Evite anexar documento com dado sensível além do necessário para a defesa, e trate esta ferramenta como um ambiente de teste até a revisão de conformidade (LGPD) ser concluída.</div>
+
     <div id="filaBody"></div>
   </section>
 
@@ -502,7 +533,7 @@ html[data-theme="dark"] .auth-screen{
       <h1>O que aconteceu da última vez que isso caiu na mesa</h1>
       <p>Processos internos com a mesma causa raiz, ordenados por semelhança factual, com o desfecho real de cada um.</p>
     </div>
-    <div class="concept-badge">visão do produto completo, depende do histórico de processos ainda não conectado</div>
+    <div class="mock-banner"><span class="ico">⚠</span><div><b>Tela de protótipo — dados ilustrativos.</b><span>Os números e processos abaixo são fictícios, fixos no código, e não vêm dos processos reais carregados no sistema. Mostra a visão de produto completo, que depende de um histórico de processos ainda não conectado.</span></div></div>
 
     <div class="sim-grid">
       <div class="sim-card"><div class="n">231</div><div class="l">processos internos no tema mais recorrente do mês</div></div>
@@ -526,7 +557,7 @@ html[data-theme="dark"] .auth-screen{
       <h1>O que uma máquina confere melhor que uma pessoa cansada</h1>
       <p>Prazo, documento, contradição entre teses e existência real da citação, nenhum desses itens deveria depender só da atenção do advogado no fim de um dia longo.</p>
     </div>
-    <div class="concept-badge">visão do produto completo, roda sobre uma minuta já gerada com teses e documentos anexados</div>
+    <div class="mock-banner"><span class="ico">⚠</span><div><b>Tela de protótipo — dados ilustrativos.</b><span>Os itens do checklist abaixo são fixos no código, não são calculados a partir da minuta gerada na aba Geração. Mostra a visão de produto completo, que rodaria sobre uma minuta já gerada com teses e documentos anexados.</span></div></div>
 
     <div class="qa-shell">
       <div class="gate-list">
@@ -846,6 +877,24 @@ let clienteSeq = 1;
 const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
 let filaFiltro = 'todos'; // 'todos' | 'meus' — só tem efeito para papel admin, operador sempre vê só os seus
 
+// Contador de uso da API de IA nesta sessão. Guarda só o que a própria resposta da
+// Anthropic informa (tokens de entrada/saída) — não estima custo em R$/US$ aqui, porque
+// isso exigiria acompanhar a tabela de preço vigente, que muda e não deve ficar
+// hardcoded no código (ver preços atuais em anthropic.com/pricing antes de calcular).
+let iaStats = { chamadas:0, sucesso:0, falhaOuLocal:0, tokensEntrada:0, tokensSaida:0 };
+function registrarChamadaIa(sucesso, usage){
+  iaStats.chamadas++;
+  if(sucesso){
+    iaStats.sucesso++;
+    if(usage){
+      iaStats.tokensEntrada += usage.input_tokens || 0;
+      iaStats.tokensSaida += usage.output_tokens || 0;
+    }
+  } else {
+    iaStats.falhaOuLocal++;
+  }
+}
+
 /* ---------------- biblioteca de teses (modelo validado a partir de 3 contestações reais Agibank) ---------------- */
 const TEMA_PRODUTOS = {
   'Cartão de crédito consignado': {
@@ -986,8 +1035,10 @@ async function tryAiRegularidade(f, rawText, textoModelo){
     if(!resp.ok) throw new Error('api indisponível');
     const data = await resp.json();
     if(!data.text || !data.text.trim()) throw new Error('sem resposta em texto');
+    registrarChamadaIa(true, data.usage);
     return data.text.trim();
   }catch(e){
+    registrarChamadaIa(false, null);
     return null;
   }
 }
@@ -1291,6 +1342,7 @@ function downloadWord(c){
   a.click();
   document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  c.baixadoEm = new Date();
 }
 
 function printDoc(c){
@@ -1301,6 +1353,32 @@ function printDoc(c){
   w.document.close();
   w.focus();
   setTimeout(()=>w.print(), 300);
+  c.baixadoEm = new Date();
+}
+
+// Sinal honesto de baixa confiança por campo: só marca quando o próprio extrator admitiu
+// não ter localizado o dado (regex ou IA), nunca um "score" de confiança inventado sem
+// lastro real.
+function campoAlertaHtml(valor){
+  if(!valor || !/não localizado|não identificado/i.test(valor)) return '';
+  return `<div class="ev-body" style="color:var(--amber);">⚠ não localizado automaticamente, preencher/conferir manualmente</div>`;
+}
+
+// Indicador de progresso do processo dentro da aba Geração: passos reais do fluxo
+// (extração já aconteceu para exibir esta tela; os demais dependem de ação registrada).
+function renderStepper(c){
+  const passos = [
+    { label: 'Dados extraídos', done: true },
+    { label: 'Minuta gerada', done: !!c.contestacao },
+    { label: 'Revisão confirmada', done: !!(c.revisao && c.revisao.advogadoOk && c.revisao.stjOk) },
+    { label: 'Arquivo baixado', done: !!c.baixadoEm },
+  ];
+  const atualIdx = passos.findIndex(p => !p.done);
+  return `<div class="stepper">${passos.map((p,i)=>{
+    const estado = p.done ? 'done' : (i===atualIdx ? 'atual' : '');
+    const linha = i < passos.length-1 ? '<span class="step-line"></span>' : '';
+    return `<div class="step ${estado}"><span class="step-dot">${p.done?'✓':i+1}</span><span class="step-label">${p.label}</span></div>${linha}`;
+  }).join('')}</div>`;
 }
 
 async function generateContestacao(id){
@@ -1415,8 +1493,11 @@ async function aiExtract(text){
     const data = await resp.json();
     if(!data.text) throw new Error('sem resposta em texto');
     const clean = data.text.replace(/```json|```/g,'').trim();
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    registrarChamadaIa(true, data.usage);
+    return parsed;
   }catch(e){
+    registrarChamadaIa(false, null);
     return null;
   }
 }
@@ -1478,6 +1559,7 @@ async function handleFile(file){
     dataCitacao: null, prazoDias: 15, dataLimite: null,
     desfecho: 'pendente',
     revisao: { advogadoOk:false, stjOk:false, confirmadoPor:null, confirmadoEm:null },
+    baixadoEm: null,
   };
   cases.unshift(caseObj);
   renderFila();
@@ -1544,8 +1626,12 @@ function renderFila(){
       : c.source==='ai'
         ? `<span class="route-pill ai"><i></i>Extração por IA</span>`
         : `<span class="route-pill local"><i></i>Extração local</span>`;
+    const valorCausa = c.fields && c.fields.valorCausa && !/não localizado/i.test(c.fields.valorCausa) ? c.fields.valorCausa : '';
+    const desfechoBadge = c.desfecho && c.desfecho !== 'pendente'
+      ? `<span class="outcome ${c.desfecho==='improcedente'?'win':c.desfecho==='acordo'?'settle':'loss'}" style="margin-left:8px;">${c.desfecho}</span>`
+      : '';
     return `<div class="q-row" data-id="${c.id}">
-      <div class="qc-tema">${tema || c.name}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}</span></div>
+      <div class="qc-tema">${tema || c.name}${desfechoBadge}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
       <div class="qc-conf">${prazoBadgeHtml(c)}</div>
       <div>${pill}</div>
       <div class="qc-status">${statusLabel}</div>
@@ -1609,6 +1695,7 @@ function renderGeracao(id){
       <h1>${f.tema}</h1>
       <p>Estrutura e teses seguem o modelo padrão validado a partir de três contestações reais do Agibank: numeração sequencial garantida pelo gerador, nenhum título repetido, preliminares sempre agrupadas antes do mérito.</p>
     </div>
+    <div id="stepperWrap">${renderStepper(c)}</div>
     <div class="gen-toolbar">
       <div class="status-chip ${c.source==='ai'?'ai':'local'}"><i></i>${sourceLabel}</div>
       ${f.pedeTutela ? '<div class="status-chip local"><i></i>tutela de urgência identificada na inicial, seção de preliminares incluída automaticamente</div>' : ''}
@@ -1624,12 +1711,12 @@ function renderGeracao(id){
         <div class="doc-raw">${(c.rawText||'').slice(0,4000).replace(/</g,'&lt;')}</div>
       </div>
       <div class="evidence-col">
-        <div class="evidence-head">Campos extraídos</div>
-        <div class="ev-card"><span class="ev-type">número cnj</span><div class="ev-title">${f.numeroCNJ}</div></div>
-        <div class="ev-card"><span class="ev-type">autor</span><div class="ev-title">${f.autor}</div></div>
-        <div class="ev-card"><span class="ev-type">réu</span><div class="ev-title">${f.reu}</div></div>
-        <div class="ev-card"><span class="ev-type">valor da causa</span><div class="ev-title">${f.valorCausa}</div></div>
-        <div class="ev-card"><span class="ev-type">tema sugerido</span><div class="ev-title">${f.tema}</div><div class="ev-body">Sugestão automática. Revisar antes de prosseguir.</div></div>
+        <div class="evidence-head">Campos extraídos${c.source==='local' ? ' <span style="color:var(--amber); font-weight:600;">· extração local, conferir com atenção</span>' : ''}</div>
+        <div class="ev-card"><span class="ev-type">número cnj</span><div class="ev-title">${f.numeroCNJ}</div>${campoAlertaHtml(f.numeroCNJ)}</div>
+        <div class="ev-card"><span class="ev-type">autor</span><div class="ev-title">${f.autor}</div>${campoAlertaHtml(f.autor)}</div>
+        <div class="ev-card"><span class="ev-type">réu</span><div class="ev-title">${f.reu}</div>${campoAlertaHtml(f.reu)}</div>
+        <div class="ev-card"><span class="ev-type">valor da causa</span><div class="ev-title">${f.valorCausa}</div>${campoAlertaHtml(f.valorCausa)}</div>
+        <div class="ev-card"><span class="ev-type">tema sugerido</span><div class="ev-title">${f.tema}</div><div class="ev-body">Sugestão automática. Revisar antes de prosseguir.</div>${campoAlertaHtml(f.tema)}</div>
         <div class="ev-card">
           <span class="ev-type">prazo processual (estimativa)</span>
           <div class="f-row4" style="grid-template-columns:1fr 90px; margin-top:8px; margin-bottom:6px;">
@@ -1698,6 +1785,7 @@ function renderGeracao(id){
       infoEl.textContent = revisao.confirmadoPor
         ? `confirmado por ${revisao.confirmadoPor} em ${new Date(revisao.confirmadoEm).toLocaleString('pt-BR')}`
         : '';
+      document.getElementById('stepperWrap').innerHTML = renderStepper(c);
     }
     document.getElementById('revisaoAdvogadoCheck').addEventListener('change', e=>{
       revisao.advogadoOk = e.target.checked;
@@ -1712,8 +1800,14 @@ function renderGeracao(id){
       atualizarGateRevisao();
     });
     atualizarGateRevisao();
-    btnDownload.addEventListener('click', ()=>downloadWord(c));
-    btnPrint.addEventListener('click', ()=>printDoc(c));
+    btnDownload.addEventListener('click', ()=>{
+      downloadWord(c);
+      document.getElementById('stepperWrap').innerHTML = renderStepper(c);
+    });
+    btnPrint.addEventListener('click', ()=>{
+      printDoc(c);
+      document.getElementById('stepperWrap').innerHTML = renderStepper(c);
+    });
   }
 }
 
@@ -1819,6 +1913,9 @@ function renderAnalises(){
     </div>`).join('');
 
   body.innerHTML = `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+      <button class="mini-btn" id="exportarAnalisesBtn">Exportar / imprimir relatório</button>
+    </div>
     <div class="sim-grid">
       <div class="sim-card"><div class="n">${analysesVisiveis.length}</div><div class="l">contestações geradas${souAdmin?' nesta sessão':' por você nesta sessão'}</div></div>
       <div class="sim-card"><div class="n">${avg}%</div><div class="l">pontuação média do checklist automático</div></div>
@@ -1832,7 +1929,49 @@ function renderAnalises(){
       <div class="case-row head"><div>ID</div><div>Tema / arquivo</div><div>Gerado por</div><div>Origem</div><div>Pontuação</div></div>
       ${rows}
     </div>
-    <div class="callout" style="margin-top:16px"><b>Como isso melhora o sistema.</b> Quando um mesmo campo ou tema aparece repetidamente na lista de falhas, é o sinal de onde investir primeiro: ajustar a extração, ampliar a biblioteca de teses para aquele tema, ou refinar o texto do modelo usado na geração. A taxa de êxito real só fica confiável à medida que o desfecho de cada processo (aba Geração) for registrado depois da decisão.</div>`;
+    <div class="callout" style="margin-top:16px"><b>Como isso melhora o sistema.</b> Quando um mesmo campo ou tema aparece repetidamente na lista de falhas, é o sinal de onde investir primeiro: ajustar a extração, ampliar a biblioteca de teses para aquele tema, ou refinar o texto do modelo usado na geração. A taxa de êxito real só fica confiável à medida que o desfecho de cada processo (aba Geração) for registrado depois da decisão.</div>
+    <div class="view-head" style="margin-top:32px">
+      <div class="kicker">Consumo da API de IA nesta sessão</div>
+      <h1 style="font-size:18px">Quanto o sistema chamou a Anthropic</h1>
+    </div>
+    <div class="sim-grid">
+      <div class="sim-card"><div class="n">${iaStats.chamadas}</div><div class="l">chamadas de IA tentadas nesta sessão</div></div>
+      <div class="sim-card"><div class="n">${iaStats.sucesso}</div><div class="l">respondidas pela IA (${iaStats.falhaOuLocal} caíram para o modo local)</div></div>
+      <div class="sim-card"><div class="n" style="font-size:16px;">${iaStats.tokensEntrada + iaStats.tokensSaida}</div><div class="l">tokens somados (${iaStats.tokensEntrada} entrada / ${iaStats.tokensSaida} saída)</div></div>
+    </div>
+    <div class="callout"><b>Sobre custo.</b> O sistema não estima valor em R$ ou US$ aqui de propósito: o preço por token muda e não deve ficar fixo no código. Para calcular o custo real desta sessão, multiplique os tokens acima pelo preço vigente do modelo em anthropic.com/pricing.</div>`;
+
+  document.getElementById('exportarAnalisesBtn').addEventListener('click', exportarAnalises);
+}
+
+function exportarAnalises(){
+  const conteudo = document.getElementById('analisesBody').innerHTML;
+  const w = window.open('', '_blank');
+  if(!w){ alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este arquivo e tente novamente.'); return; }
+  w.document.write(`<html><head><meta charset="utf-8"><title>Relatório de Análises</title>
+    <style>
+      body{font-family:Arial, sans-serif; padding:24px; color:#111;}
+      h1{font-size:16px; margin-bottom:4px;}
+      .kicker{font-size:11px; text-transform:uppercase; color:#666; margin-top:20px;}
+      .sim-grid{display:flex; gap:16px; margin:10px 0 16px; flex-wrap:wrap;}
+      .sim-card{border:1px solid #ccc; border-radius:8px; padding:10px 14px; min-width:170px;}
+      .sim-card .n{font-size:18px; font-weight:bold;}
+      .sim-card .l{font-size:11px; color:#555;}
+      .case-list{border:1px solid #ccc; border-radius:8px; overflow:hidden;}
+      .case-row{display:grid; grid-template-columns:50px 1fr 110px 110px 80px; gap:8px; padding:8px 12px; border-bottom:1px solid #eee; font-size:11px;}
+      .case-row.head{font-weight:bold; background:#f5f5f5;}
+      .case-sim .p{display:block; font-size:10px; color:#777;}
+      .outcome{padding:2px 8px; border-radius:10px; font-size:10px; background:#eee;}
+      .callout{border-left:3px solid #999; padding:10px 14px; font-size:11px; margin-top:14px; background:#f9f9f9;}
+      button{display:none;}
+    </style></head><body>
+    <h1>Relatório de Análises — Motor de Contestações</h1>
+    <div style="font-size:11px; color:#555;">Gerado em ${new Date().toLocaleString('pt-BR')} por ${currentUser ? currentUser.usuario : 'usuário não identificado'}</div>
+    ${conteudo}
+    </body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(), 300);
 }
 
 renderFila();
