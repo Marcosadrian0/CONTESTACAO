@@ -78,18 +78,37 @@ vercel dev
   margens personalizadas por cliente, aplicados de verdade no `.doc` gerado.
 - Pré-visualização em escala real (folha A4, 21 cm) da minuta com o cabeçalho e a
   margem do cliente selecionado, antes do download.
+- Login obrigatório antes de usar o sistema, com troca de senha forçada no
+  primeiro acesso quando o usuário ainda está com senha temporária.
+- Aba Admin (visível só para usuários com papel de administrador) para cadastrar
+  novos usuários, redefinir senha e alternar papel entre operador e admin.
 
 ## Limitação atual mais importante
 
 Todo o estado (processos carregados, contestações geradas, análises, clientes
 cadastrados) vive apenas na memória do navegador durante a sessão. Fechar a aba
-apaga tudo. Não há banco de dados nem conta de usuário.
+apaga tudo. Não há banco de dados.
+
+Os usuários são a única coisa que sobrevive ao fechar a aba: ficam gravados no
+`localStorage` do navegador. Isso é suficiente para testar o fluxo de login,
+mas **não é autenticação de produção**: a senha guardada usa apenas um hash
+simples de ofuscação (não criptográfico), não há proteção contra força bruta,
+e o cadastro de usuários não é sincronizado entre navegadores ou dispositivos
+diferentes. Antes de usar com petições reais de clientes, mover a autenticação
+para um backend de verdade é o próximo passo obrigatório.
+
+Usuário administrador padrão, criado automaticamente no primeiro uso de cada
+navegador: `marcos.oliveira`, senha temporária `1234` (o sistema exige a troca
+dessa senha assim que o login é feito).
 
 ## Próximos passos sugeridos
 
-1. Persistência real: mover `cases`, `analyses` e `clientes` para um banco (ex.:
-   Postgres na própria Vercel, ou Supabase) em vez de variáveis em memória.
-2. Autenticação básica, já que isso vai lidar com petições reais de clientes.
+1. Persistência real: mover `cases`, `analyses`, `clientes` e `usuários` para um
+   banco (ex.: Postgres na própria Vercel, ou Supabase) em vez de variáveis em
+   memória e `localStorage`.
+2. Autenticação de produção: hash de senha criptográfico e verificação no
+   servidor (hoje a checagem de senha roda inteiramente no navegador), já que
+   isso vai lidar com petições reais de clientes.
 3. Ampliar a biblioteca de teses (`TEMA_PRODUTOS` em `index.html`) à medida que
    mais contestações reais forem validadas, seguindo o mesmo processo usado para
    os seis temas atuais: ler peças reais, extrair o padrão comum, e só então

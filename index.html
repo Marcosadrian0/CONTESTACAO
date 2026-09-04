@@ -341,9 +341,103 @@ footer{max-width:1240px; margin:60px auto 0; padding:24px 34px; border-top:1px s
   .tabs{overflow-x:auto;}
   .dropzone{flex-direction:column; text-align:center;}
 }
+
+/* ---------- autenticação ---------- */
+.auth-screen{
+  position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
+  padding:24px; background:var(--bg);
+  background-image:
+    radial-gradient(ellipse 900px 500px at 90% -10%, rgba(14,110,104,.07), transparent 60%);
+}
+html[data-theme="dark"] .auth-screen{
+  background-image:
+    radial-gradient(ellipse 900px 500px at 85% -10%, rgba(63,184,174,.10), transparent 60%),
+    radial-gradient(ellipse 700px 500px at -5% 40%, rgba(79,174,124,.06), transparent 55%);
+}
+.auth-card{width:100%; max-width:380px; background:var(--bg-raise); border:1px solid var(--line); border-radius:16px; padding:34px; box-shadow:var(--shadow);}
+.auth-brand{display:flex; align-items:center; gap:10px; margin-bottom:24px;}
+.auth-card .kicker{margin-bottom:8px;}
+.auth-card h1{font-family:var(--serif); font-size:22px; font-weight:600; margin-bottom:6px; letter-spacing:-.01em;}
+.auth-sub{font-size:12.5px; color:var(--ink-dim); margin-bottom:22px; line-height:1.55;}
+.auth-error{font-size:12px; color:var(--red); margin:-6px 0 14px; min-height:14px;}
+.auth-hint{font-size:11px; color:var(--ink-faint); margin-top:16px; text-align:center; line-height:1.5;}
+.auth-warn{
+  display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-left:3px solid var(--amber);
+  border-radius:0 12px 12px 0; padding:12px 14px; font-size:12px; color:var(--ink-dim); line-height:1.55; margin-bottom:20px; background:var(--bg-raise-2);
+}
+.auth-warn b{color:var(--ink);}
+
+/* ---------- usuário / topo ---------- */
+.user-chip{
+  font-family:var(--mono); font-size:11px; color:var(--ink-dim); display:flex; align-items:center; gap:8px;
+  border:1px solid var(--line-strong); padding:5px 6px 5px 12px; border-radius:20px;
+}
+.user-chip .role{color:var(--cyan);}
+.user-chip button{
+  font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); background:transparent; border:none;
+  cursor:pointer; padding:4px 8px; border-radius:14px;
+}
+.user-chip button:hover{color:var(--red); background:rgba(160,60,51,.1);}
+
+/* ---------- admin ---------- */
+.admin-shell{display:grid; grid-template-columns:340px 1fr; gap:18px; align-items:start;}
+.user-list{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--bg-raise); box-shadow:var(--shadow);}
+.user-row{display:grid; grid-template-columns:1fr 110px 150px 130px; gap:12px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--line);}
+.user-row:last-child{border-bottom:none;}
+.user-row.head{font-family:var(--mono); font-size:10px; text-transform:uppercase; color:var(--ink-faint); letter-spacing:.05em;}
+.user-name{font-size:13.5px; font-weight:500;}
+.user-name .m{display:block; font-size:10.5px; color:var(--ink-faint); font-family:var(--mono); margin-top:2px; font-weight:300;}
+.role-pill{font-family:var(--mono); font-size:10px; padding:4px 9px; border-radius:20px; background:var(--cyan-dim); color:var(--cyan); display:inline-block;}
+.role-pill.op{background:var(--line); color:var(--ink-dim);}
+.status-pill{font-family:var(--mono); font-size:10px; padding:4px 9px; border-radius:20px; display:inline-block;}
+.status-pill.ok{background:rgba(30,122,76,.12); color:var(--green);}
+.status-pill.pend{background:rgba(217,164,65,.14); color:var(--amber);}
+.user-actions{display:flex; gap:6px; flex-wrap:wrap;}
 </style>
 </head>
 <body>
+
+<!-- ============ LOGIN ============ -->
+<div class="auth-screen" id="loginScreen">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-mark"><i></i><i></i></div>
+      <div class="brand-text">motor de contestações <span>/ evidência</span></div>
+    </div>
+    <div class="kicker">Acesso</div>
+    <h1>Entrar</h1>
+    <p class="auth-sub">Informe seu usuário e senha para acessar o sistema.</p>
+    <div class="auth-error" id="loginError"></div>
+    <label class="f-label">Usuário</label>
+    <input class="f-input" id="loginUsuario" autocomplete="username" placeholder="ex.: marcos.oliveira">
+    <label class="f-label">Senha</label>
+    <input class="f-input" id="loginSenha" type="password" autocomplete="current-password" placeholder="••••••">
+    <button class="btn-generate" id="loginBtn" style="width:100%; justify-content:center;">Entrar</button>
+    <p class="auth-hint">Esqueceu a senha? Peça a um administrador para redefinir na aba Admin.</p>
+  </div>
+</div>
+
+<!-- ============ TROCA DE SENHA OBRIGATÓRIA ============ -->
+<div class="auth-screen" id="changePwScreen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-mark"><i></i><i></i></div>
+      <div class="brand-text">motor de contestações <span>/ evidência</span></div>
+    </div>
+    <div class="kicker">Primeiro acesso</div>
+    <h1>Defina uma nova senha</h1>
+    <p class="auth-sub">Você entrou com uma senha temporária. Defina uma senha nova antes de continuar.</p>
+    <div class="auth-warn"><span>⚠</span><span><b>Senha temporária detectada.</b> Por segurança, ela precisa ser trocada agora, antes de acessar o restante do sistema.</span></div>
+    <div class="auth-error" id="changePwError"></div>
+    <label class="f-label">Nova senha</label>
+    <input class="f-input" id="novaSenha1" type="password" autocomplete="new-password" placeholder="mínimo 4 caracteres">
+    <label class="f-label">Confirmar nova senha</label>
+    <input class="f-input" id="novaSenha2" type="password" autocomplete="new-password" placeholder="repita a nova senha">
+    <button class="btn-generate" id="changePwBtn" style="width:100%; justify-content:center;">Salvar nova senha e entrar</button>
+  </div>
+</div>
+
+<div id="appShell" style="display:none">
 
 <div class="topbar">
   <div class="brand">
@@ -357,6 +451,7 @@ footer{max-width:1240px; margin:60px auto 0; padding:24px 34px; border-top:1px s
     <div class="tab" data-view="qualidade">Portão de qualidade</div>
     <div class="tab" data-view="analises">Análises</div>
     <div class="tab" data-view="padroes">Padrões por cliente</div>
+    <div class="tab" data-view="admin" id="tabAdmin" style="display:none">Admin</div>
   </div>
   <div class="top-right">
     <div class="theme-toggle" id="themeToggle">
@@ -364,6 +459,11 @@ footer{max-width:1240px; margin:60px auto 0; padding:24px 34px; border-top:1px s
       <button id="btnDark" title="Tema escuro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.5A8.5 8.5 0 1 1 11.5 3 7 7 0 0 0 21 12.5Z"/></svg></button>
     </div>
     <div class="env-badge"><span class="env-dot"></span>fila zerada, pronta para testes</div>
+    <div class="user-chip" id="userChip">
+      <span id="userChipName"></span>
+      <span class="role" id="userChipRole"></span>
+      <button id="logoutBtn" title="Sair">Sair</button>
+    </div>
   </div>
 </div>
 
@@ -463,12 +563,24 @@ footer{max-width:1240px; margin:60px auto 0; padding:24px 34px; border-top:1px s
     <div id="padroesBody"></div>
   </section>
 
+  <!-- ============ ADMIN ============ -->
+  <section class="view" id="view-admin">
+    <div class="view-head">
+      <div class="kicker">Restrito a administradores</div>
+      <h1>Usuários com acesso ao sistema</h1>
+      <p>Cadastre novos usuários, redefina senhas e gerencie papéis. Um usuário criado com senha temporária é obrigado a trocá-la no primeiro acesso.</p>
+    </div>
+    <div id="adminBody"></div>
+  </section>
+
 </main>
 
 <footer>
   <div>motor de contestações, protótipo funcional de ingestão</div>
   <div>upload real ativo / demais painéis em visão conceitual</div>
 </footer>
+
+</div>
 
 <script>
 /* ---------------- tema ---------------- */
@@ -494,7 +606,228 @@ tabs.forEach(t=>t.addEventListener('click', ()=>{
   goView(t.dataset.view);
   if(t.dataset.view==='analises') renderAnalises();
   if(t.dataset.view==='padroes') renderPadroes();
+  if(t.dataset.view==='admin') renderAdmin();
 }));
+
+/* ---------------- autenticação ---------------- */
+// Protótipo sem backend: usuários ficam em localStorage (sobrevivem ao fechar a aba,
+// diferente do restante do estado do sistema). A senha nunca é gravada em texto puro,
+// mas o hash abaixo é só ofuscação, não criptografia real — não serve para produção.
+const USERS_KEY = 'mc_users_v1';
+const SESSION_KEY = 'mc_session_v1';
+
+function hashSenha(str){
+  let h = 5381;
+  for(let i=0;i<str.length;i++){ h = ((h*33) ^ str.charCodeAt(i)) >>> 0; }
+  return 'h' + h.toString(16);
+}
+
+function loadUsers(){
+  try{ return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }catch(e){ return []; }
+}
+function saveUsers(users){ localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
+
+function seedUsuarios(){
+  let users = loadUsers();
+  if(users.length === 0){
+    users = [{
+      id: 1,
+      usuario: 'marcos.oliveira',
+      senhaHash: hashSenha('1234'),
+      papel: 'admin',
+      trocarSenha: true,
+      criadoEm: new Date().toISOString(),
+    }];
+    saveUsers(users);
+  }
+  return users;
+}
+
+let currentUser = null;
+
+function getSession(){
+  try{ return JSON.parse(sessionStorage.getItem(SESSION_KEY)); }catch(e){ return null; }
+}
+function setSession(userId){ sessionStorage.setItem(SESSION_KEY, JSON.stringify({userId})); }
+function clearSession(){ sessionStorage.removeItem(SESSION_KEY); }
+
+function showLogin(){
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('changePwScreen').style.display = 'none';
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginSenha').value = '';
+}
+function showChangePw(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('changePwScreen').style.display = 'flex';
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('changePwError').textContent = '';
+  document.getElementById('novaSenha1').value = '';
+  document.getElementById('novaSenha2').value = '';
+}
+function showApp(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('changePwScreen').style.display = 'none';
+  document.getElementById('appShell').style.display = 'block';
+  document.getElementById('tabAdmin').style.display = currentUser.papel === 'admin' ? '' : 'none';
+  document.getElementById('userChipName').textContent = currentUser.usuario;
+  document.getElementById('userChipRole').textContent = currentUser.papel === 'admin' ? 'admin' : 'operador';
+}
+
+function tentarLogin(){
+  const usuario = document.getElementById('loginUsuario').value.trim().toLowerCase();
+  const senha = document.getElementById('loginSenha').value;
+  const errEl = document.getElementById('loginError');
+  if(!usuario || !senha){ errEl.textContent = 'Informe usuário e senha.'; return; }
+  const users = loadUsers();
+  const u = users.find(x => x.usuario.toLowerCase() === usuario);
+  if(!u || u.senhaHash !== hashSenha(senha)){
+    errEl.textContent = 'Usuário ou senha inválidos.';
+    return;
+  }
+  currentUser = u;
+  setSession(u.id);
+  if(u.trocarSenha){ showChangePw(); }
+  else { showApp(); goView('fila'); }
+}
+
+function confirmarTrocaSenha(){
+  const s1 = document.getElementById('novaSenha1').value;
+  const s2 = document.getElementById('novaSenha2').value;
+  const errEl = document.getElementById('changePwError');
+  if(s1.length < 4){ errEl.textContent = 'A nova senha precisa ter ao menos 4 caracteres.'; return; }
+  if(s1 !== s2){ errEl.textContent = 'As senhas não coincidem.'; return; }
+  const users = loadUsers();
+  const u = users.find(x => x.id === currentUser.id);
+  if(!u) return;
+  u.senhaHash = hashSenha(s1);
+  u.trocarSenha = false;
+  saveUsers(users);
+  currentUser = u;
+  showApp();
+  goView('fila');
+}
+
+function logout(){
+  clearSession();
+  currentUser = null;
+  showLogin();
+}
+
+document.getElementById('loginBtn').addEventListener('click', tentarLogin);
+document.getElementById('loginSenha').addEventListener('keydown', e=>{ if(e.key==='Enter') tentarLogin(); });
+document.getElementById('loginUsuario').addEventListener('keydown', e=>{ if(e.key==='Enter') tentarLogin(); });
+document.getElementById('changePwBtn').addEventListener('click', confirmarTrocaSenha);
+document.getElementById('novaSenha2').addEventListener('keydown', e=>{ if(e.key==='Enter') confirmarTrocaSenha(); });
+document.getElementById('logoutBtn').addEventListener('click', logout);
+
+function initAuth(){
+  seedUsuarios();
+  const session = getSession();
+  if(session){
+    const users = loadUsers();
+    const u = users.find(x => x.id === session.userId);
+    if(u){
+      currentUser = u;
+      if(u.trocarSenha){ showChangePw(); return; }
+      showApp();
+      return;
+    }
+  }
+  showLogin();
+}
+
+/* ---------------- admin: gestão de usuários ---------------- */
+function renderAdmin(){
+  if(!currentUser || currentUser.papel !== 'admin') return;
+  const body = document.getElementById('adminBody');
+  const users = loadUsers();
+  const rows = users.map(u => `
+    <div class="user-row">
+      <div class="user-name">${u.usuario}${u.id===currentUser.id ? ' <span class="m">(você)</span>' : ''}</div>
+      <div><span class="role-pill ${u.papel==='admin'?'':'op'}">${u.papel==='admin'?'Admin':'Operador'}</span></div>
+      <div><span class="status-pill ${u.trocarSenha?'pend':'ok'}">${u.trocarSenha ? 'Aguardando troca de senha' : 'Senha definida'}</span></div>
+      <div class="user-actions">
+        <button class="mini-btn" data-reset="${u.id}">Redefinir senha</button>
+        <button class="mini-btn" data-role="${u.id}">${u.papel==='admin' ? 'Tornar operador' : 'Tornar admin'}</button>
+        <button class="mini-btn danger" data-del="${u.id}">Remover</button>
+      </div>
+    </div>`).join('');
+
+  body.innerHTML = `<div class="admin-shell">
+    <div class="client-form">
+      <h3>Novo usuário</h3>
+      <label class="f-label">Usuário (login)</label>
+      <input class="f-input" id="novoUsuario" placeholder="ex.: joao.silva">
+      <label class="f-label">Senha temporária</label>
+      <input class="f-input" id="novaSenhaUsuario" placeholder="ex.: 1234">
+      <label class="f-label">Papel</label>
+      <select class="f-input" id="novoPapel">
+        <option value="operador">Operador</option>
+        <option value="admin">Administrador</option>
+      </select>
+      <div class="auth-error" id="novoUsuarioError"></div>
+      <button class="btn-generate" id="addUserBtn" style="width:100%; justify-content:center;">Criar usuário</button>
+    </div>
+    <div class="user-list">
+      <div class="user-row head"><div>Usuário</div><div>Papel</div><div>Senha</div><div>Ações</div></div>
+      ${rows}
+    </div>
+  </div>`;
+
+  document.getElementById('addUserBtn').addEventListener('click', ()=>{
+    const usuario = document.getElementById('novoUsuario').value.trim();
+    const senha = document.getElementById('novaSenhaUsuario').value;
+    const papel = document.getElementById('novoPapel').value;
+    const errEl = document.getElementById('novoUsuarioError');
+    if(!usuario || !senha){ errEl.textContent = 'Informe usuário e senha temporária.'; return; }
+    const atuais = loadUsers();
+    if(atuais.some(u=>u.usuario.toLowerCase()===usuario.toLowerCase())){ errEl.textContent = 'Já existe um usuário com esse login.'; return; }
+    const novoId = atuais.reduce((max,u)=>Math.max(max,u.id),0) + 1;
+    atuais.push({ id: novoId, usuario, senhaHash: hashSenha(senha), papel, trocarSenha: true, criadoEm: new Date().toISOString() });
+    saveUsers(atuais);
+    renderAdmin();
+  });
+
+  body.querySelectorAll('[data-reset]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const atuais = loadUsers();
+      const u = atuais.find(x=>x.id===parseInt(btn.dataset.reset));
+      if(!u) return;
+      const nova = prompt(`Nova senha temporária para ${u.usuario}:`, '1234');
+      if(!nova) return;
+      u.senhaHash = hashSenha(nova);
+      u.trocarSenha = true;
+      saveUsers(atuais);
+      renderAdmin();
+    });
+  });
+  body.querySelectorAll('[data-role]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const atuais = loadUsers();
+      const u = atuais.find(x=>x.id===parseInt(btn.dataset.role));
+      if(!u) return;
+      if(u.papel==='admin' && atuais.filter(x=>x.papel==='admin').length<=1){ alert('Não é possível remover o último administrador.'); return; }
+      u.papel = u.papel==='admin' ? 'operador' : 'admin';
+      saveUsers(atuais);
+      if(u.id===currentUser.id){ currentUser = u; showApp(); }
+      renderAdmin();
+    });
+  });
+  body.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = parseInt(btn.dataset.del);
+      if(id === currentUser.id){ alert('Você não pode remover o próprio usuário logado.'); return; }
+      const atuais = loadUsers();
+      const alvo = atuais.find(x=>x.id===id);
+      if(alvo && alvo.papel==='admin' && atuais.filter(x=>x.papel==='admin').length<=1){ alert('Não é possível remover o último administrador.'); return; }
+      if(!confirm('Remover este usuário?')) return;
+      saveUsers(atuais.filter(x=>x.id!==id));
+      renderAdmin();
+    });
+  });
+}
 
 /* ---------------- estado ---------------- */
 let cases = [];
@@ -1269,6 +1602,7 @@ function renderAnalises(){
 }
 
 renderFila();
+initAuth();
 </script>
 </body>
 </html>
