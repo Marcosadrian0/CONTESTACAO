@@ -1,0 +1,9 @@
+{
+  "name": "motor-contestacoes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Protótipo do motor de geração de contestações (CIC), ingestão de petições, geração de minuta e padrões de documento por cliente.",
+  "engines": {
+    "node": ">=18"
+  }
+}

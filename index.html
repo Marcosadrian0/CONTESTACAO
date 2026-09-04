@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motor de Contestações</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{
+  --mono:'IBM Plex Mono', monospace;
+  --serif:'Fraunces', serif;
+  --sans:'Plus Jakarta Sans', sans-serif;
+}
+html[data-theme="light"]{
+  --bg:#ECEFF3;
+  --bg-raise:#FFFFFF;
+  --bg-raise-2:#F4F6F8;
+  --line:rgba(2,54,49,.10);
+  --line-strong:rgba(2,54,49,.18);
+  --ink:#0C1F1B;
+  --ink-dim:#4A545E;
+  --ink-faint:#8A93A0;
+  --cyan:#0E6E68;
+  --cyan-dim:rgba(14,110,104,.10);
+  --green:#1E7A4C;
+  --amber:#9C7222;
+  --red:#A03C33;
+  --paper:#FDFCF8;
+  --paper-ink:#1c1a15;
+  --shadow:0 1px 2px rgba(2,54,49,.05);
+}
+html[data-theme="dark"]{
+  --bg:#07120F;
+  --bg-raise:#0D1C18;
+  --bg-raise-2:#122720;
+  --line:rgba(236,239,243,.09);
+  --line-strong:rgba(236,239,243,.16);
+  --ink:#ECEFF3;
+  --ink-dim:rgba(236,239,243,.56);
+  --ink-faint:rgba(236,239,243,.32);
+  --cyan:#3FB8AE;
+  --cyan-dim:#0E4442;
+  --green:#4FAE7C;
+  --amber:#D9A441;
+  --red:#C25B4F;
+  --paper:#F7F5EF;
+  --paper-ink:#1c1a15;
+  --shadow:0 20px 60px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--sans); font-weight:300;
+  min-height:100vh; transition:background .25s ease, color .25s ease;
+}
+html[data-theme="dark"] body{
+  background-image:
+    radial-gradient(ellipse 900px 500px at 85% -10%, rgba(63,184,174,.10), transparent 60%),
+    radial-gradient(ellipse 700px 500px at -5% 40%, rgba(79,174,124,.06), transparent 55%);
+  background-attachment:fixed;
+}
+html[data-theme="light"] body{
+  background-image:
+    radial-gradient(ellipse 900px 500px at 90% -10%, rgba(14,110,104,.07), transparent 60%);
+  background-attachment:fixed;
+}
+::selection{background:var(--cyan); color:var(--bg);}
+
+/* ---------- topo ---------- */
+.topbar{
+  position:sticky; top:0; z-index:40;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 34px;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex; align-items:center; gap:12px;}
+.brand-mark{width:26px;height:26px; position:relative;}
+.brand-mark i{position:absolute; width:15px;height:15px; border-radius:4px;}
+.brand-mark i:nth-child(1){top:0;left:0; background:var(--ink);}
+.brand-mark i:nth-child(2){bottom:0;right:0; background:var(--cyan);}
+.brand-text{font-family:var(--serif); font-size:16px; font-weight:600; letter-spacing:.01em;}
+.brand-text span{color:var(--cyan); font-style:italic; font-weight:500;}
+
+.tabs{display:flex; gap:2px; background:var(--bg-raise); padding:4px; border-radius:11px; border:1px solid var(--line);}
+.tab{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.02em;
+  padding:8px 14px; border-radius:8px; cursor:pointer; color:var(--ink-dim);
+  transition:all .15s ease; white-space:nowrap;
+}
+.tab:hover{color:var(--ink);}
+.tab.active{background:var(--cyan-dim); color:var(--cyan); box-shadow:inset 0 0 0 1px rgba(14,110,104,.3);}
+
+.top-right{display:flex; align-items:center; gap:12px;}
+.theme-toggle{
+  display:flex; align-items:center; gap:3px; background:var(--bg-raise); border:1px solid var(--line);
+  border-radius:20px; padding:3px; cursor:pointer;
+}
+.theme-toggle button{
+  border:none; background:transparent; width:28px; height:26px; border-radius:16px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-faint);
+}
+.theme-toggle button.on{background:var(--cyan-dim); color:var(--cyan);}
+.theme-toggle svg{width:14px; height:14px;}
+.env-badge{
+  font-family:var(--mono); font-size:10px; color:var(--ink-faint);
+  border:1px solid var(--line-strong); padding:5px 10px; border-radius:20px;
+  display:flex; align-items:center; gap:6px;
+}
+.env-dot{width:6px;height:6px;border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green);}
+
+/* ---------- main ---------- */
+main{max-width:1240px; margin:0 auto; padding:38px 34px 100px;}
+.view{display:none;}
+.view.active{display:block; animation:fade .45s ease both;}
+@keyframes fade{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+
+.view-head{margin-bottom:26px; max-width:760px;}
+.kicker{
+  font-family:var(--mono); font-size:11px; color:var(--cyan); letter-spacing:.08em; text-transform:uppercase;
+  margin-bottom:10px; display:flex; align-items:center; gap:8px;
+}
+.kicker::before{content:''; width:16px; height:1px; background:var(--cyan);}
+.view-head h1{font-family:var(--serif); font-size:31px; font-weight:600; line-height:1.15; letter-spacing:-.01em;}
+.view-head p{color:var(--ink-dim); font-size:14px; margin-top:12px; line-height:1.65; max-width:600px;}
+
+/* ---------- dropzone ---------- */
+.dropzone{
+  border:1.5px dashed var(--line-strong); border-radius:16px; padding:34px;
+  display:flex; align-items:center; gap:20px; background:var(--bg-raise);
+  cursor:pointer; transition:border-color .15s, background .15s; margin-bottom:26px;
+}
+.dropzone:hover, .dropzone.drag{border-color:var(--cyan); background:var(--cyan-dim);}
+.dropzone-icon{
+  width:52px; height:52px; border-radius:14px; background:var(--cyan-dim); color:var(--cyan);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.dropzone-icon svg{width:24px; height:24px;}
+.dropzone-text b{font-size:14.5px; display:block; margin-bottom:3px;}
+.dropzone-text span{font-size:12.5px; color:var(--ink-dim);}
+.dropzone input{display:none;}
+
+.empty-state{
+  text-align:center; padding:70px 20px; color:var(--ink-faint);
+  border:1px solid var(--line); border-radius:16px; background:var(--bg-raise);
+}
+.empty-state svg{width:38px; height:38px; margin-bottom:16px; opacity:.5;}
+.empty-state b{display:block; font-size:14.5px; color:var(--ink-dim); margin-bottom:6px; font-weight:500;}
+.empty-state span{font-size:12.5px;}
+
+/* ---------- fila dinâmica ---------- */
+.queue-table{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--bg-raise); box-shadow:var(--shadow);}
+.q-row{
+  display:grid; grid-template-columns:1.4fr 140px 150px 100px 40px;
+  align-items:center; gap:14px; padding:16px 20px;
+  border-bottom:1px solid var(--line); cursor:pointer; transition:background .12s;
+}
+.q-row:last-child{border-bottom:none;}
+.q-row:hover{background:var(--bg-raise-2);}
+.q-row.head{
+  font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--ink-faint); cursor:default;
+}
+.q-row.head:hover{background:transparent;}
+.qc-tema{font-size:13.5px; font-weight:500;}
+.qc-tema .sub{display:block; font-size:11px; color:var(--ink-faint); font-weight:300; margin-top:2px; font-family:var(--mono);}
+.qc-conf{font-family:var(--mono); font-size:12.5px;}
+.conf-bar{width:64px; height:4px; border-radius:3px; background:var(--line); margin-top:5px; overflow:hidden;}
+.conf-fill{height:100%; border-radius:3px;}
+.route-pill{
+  font-family:var(--mono); font-size:10px; letter-spacing:.02em; padding:5px 10px; border-radius:20px;
+  display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+}
+.route-pill.ai{background:rgba(14,110,104,.12); color:var(--cyan);}
+.route-pill.local{background:rgba(217,164,65,.14); color:var(--amber);}
+.route-pill i{width:5px;height:5px;border-radius:50%; background:currentColor;}
+.qc-status{font-size:12px; color:var(--ink-dim);}
+.qc-arrow{color:var(--ink-faint); font-size:15px;}
+
+/* ---------- geração / evidência ---------- */
+.gen-shell{display:grid; grid-template-columns:1fr 360px; gap:18px; align-items:start;}
+.doc-frame{
+  background:var(--paper); color:var(--paper-ink); border-radius:14px; padding:40px 44px;
+  font-family:var(--serif); font-size:13.5px; line-height:1.85; box-shadow:var(--shadow); position:relative;
+  max-height:640px; overflow-y:auto;
+}
+.doc-court{text-align:center; font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; color:#6b6455; text-transform:uppercase; margin-bottom:20px;}
+.doc-frame h5{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#0E4442; margin:20px 0 8px; font-weight:600;}
+.doc-frame h5:first-of-type{margin-top:0;}
+.doc-frame p{margin-bottom:8px;}
+.doc-raw{white-space:pre-wrap; font-family:var(--mono); font-size:11.5px; line-height:1.7; color:#3a382f;}
+
+.preview-label{
+  font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); text-align:center; margin-bottom:10px;
+}
+.page-preview-wrap{overflow-x:auto; padding:6px 0 18px;}
+.page-preview{
+  width:21cm; max-width:none; margin:0 auto; background:var(--paper); color:var(--paper-ink);
+  font-family:var(--serif); font-size:13.5px; line-height:1.85; box-shadow:var(--shadow); position:relative;
+}
+.page-preview h5{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#0E4442; margin:20px 0 8px; font-weight:600;}
+.page-preview h5:first-of-type{margin-top:0;}
+.page-preview p{margin-bottom:8px;}
+.page-preview .doc-court{text-align:center; font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; color:#6b6455; text-transform:uppercase; margin-bottom:20px;}
+
+.evidence-col{position:sticky; top:96px; display:flex; flex-direction:column; gap:10px;}
+.evidence-head{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint);}
+.ev-card{background:var(--bg-raise); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow);}
+.ev-type{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint);}
+.ev-title{font-size:12.5px; font-weight:600; margin-top:5px; margin-bottom:4px;}
+.ev-body{font-size:12px; color:var(--ink-dim); line-height:1.55;}
+.ev-src{font-family:var(--mono); font-size:9.5px; color:var(--ink-faint); margin-top:8px; padding-top:8px; border-top:1px solid var(--line);}
+
+.gen-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;}
+.status-chip{font-family:var(--mono); font-size:11px; display:flex; align-items:center; gap:7px;}
+.status-chip i{width:6px;height:6px;border-radius:50%;}
+.status-chip.ai{color:var(--cyan);} .status-chip.ai i{background:var(--cyan); box-shadow:0 0 6px var(--cyan);}
+.status-chip.local{color:var(--amber);} .status-chip.local i{background:var(--amber); box-shadow:0 0 6px var(--amber);}
+.back-link{font-family:var(--mono); font-size:11px; color:var(--ink-dim); cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin-bottom:16px;}
+.back-link:hover{color:var(--ink);}
+
+.callout{
+  border:1px solid var(--line); border-left:3px solid var(--cyan); border-radius:0 12px 12px 0;
+  padding:13px 16px; font-size:12.5px; color:var(--ink-dim); line-height:1.6; background:var(--bg-raise); margin-top:16px;
+}
+.callout b{color:var(--ink);}
+
+/* ---------- padrões por cliente ---------- */
+.client-shell{display:grid; grid-template-columns:340px 1fr; gap:18px; align-items:start;}
+.client-form{background:var(--bg-raise); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:var(--shadow); position:sticky; top:96px;}
+.client-form h3{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); margin-bottom:14px;}
+.f-label{font-size:12px; color:var(--ink-dim); margin-bottom:5px; display:block; font-weight:500;}
+.f-input{
+  width:100%; font-family:var(--sans); font-size:13px; padding:9px 11px; border-radius:8px;
+  border:1px solid var(--line-strong); background:var(--bg); color:var(--ink); margin-bottom:14px;
+}
+.f-row4{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px;}
+.f-row4 label{font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;}
+.f-check{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-dim); margin-bottom:14px; cursor:pointer;}
+.logo-preview{
+  width:100%; height:70px; border:1px dashed var(--line-strong); border-radius:8px; margin-bottom:14px;
+  display:flex; align-items:center; justify-content:center; overflow:hidden; background:#fff;
+}
+.logo-preview img{max-height:56px; max-width:90%;}
+.logo-preview span{font-size:11px; color:var(--ink-faint); font-family:var(--mono);}
+
+.client-list{display:grid; grid-template-columns:repeat(2,1fr); gap:14px;}
+.client-card{background:var(--bg-raise); border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow);}
+.client-card-head{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;}
+.client-name{font-size:14px; font-weight:600;}
+.client-badges{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.client-badge{font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:20px; background:var(--cyan-dim); color:var(--cyan);}
+.client-badge.off{background:var(--line); color:var(--ink-faint);}
+.client-actions{display:flex; gap:8px; margin-top:12px;}
+.mini-btn{
+  font-family:var(--mono); font-size:10.5px; padding:5px 10px; border-radius:7px; border:1px solid var(--line-strong);
+  background:transparent; color:var(--ink-dim); cursor:pointer;
+}
+.mini-btn:hover{color:var(--ink); border-color:var(--ink-faint);}
+.mini-btn.danger:hover{color:var(--red); border-color:var(--red);}
+
+.spin{width:14px; height:14px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--cyan); animation:spin .7s linear infinite; display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.btn-generate{
+  font-family:var(--sans); font-weight:600; font-size:13px; color:#fff; background:var(--cyan);
+  border:none; padding:11px 20px; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+  transition:opacity .15s;
+}
+.btn-generate:hover{opacity:.88;}
+.btn-generate:disabled{opacity:.6; cursor:wait;}
+.btn-generate .spin{border-color:rgba(255,255,255,.35); border-top-color:#fff;}
+
+/* ---------- casos similares / qualidade / aprendizado (conceito) ---------- */
+.concept-badge{
+  font-family:var(--mono); font-size:10px; color:var(--ink-faint); border:1px solid var(--line-strong);
+  padding:4px 10px; border-radius:20px; display:inline-block; margin-bottom:18px;
+}
+.sim-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px;}
+.sim-card{background:var(--bg-raise); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:var(--shadow);}
+.sim-card .n{font-family:var(--mono); font-size:26px; font-weight:600; color:var(--cyan);}
+.sim-card .l{font-size:12px; color:var(--ink-dim); margin-top:4px;}
+
+.case-list{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--bg-raise); box-shadow:var(--shadow);}
+.case-row{display:grid; grid-template-columns:120px 1fr 110px 130px 90px; gap:14px; align-items:center; padding:15px 20px; border-bottom:1px solid var(--line);}
+.case-row:last-child{border-bottom:none;}
+.case-row.head{font-family:var(--mono); font-size:10px; text-transform:uppercase; color:var(--ink-faint); letter-spacing:.05em;}
+.case-id{font-family:var(--mono); font-size:12px; color:var(--ink-dim);}
+.case-sim{font-size:13px;}
+.case-sim .p{font-size:11px; color:var(--ink-faint); display:block; margin-top:2px;}
+.match-bar{width:70px; height:4px; background:var(--line); border-radius:3px; overflow:hidden;}
+.match-fill{height:100%; background:var(--cyan); border-radius:3px;}
+.outcome{font-family:var(--mono); font-size:11px; padding:4px 10px; border-radius:20px; display:inline-block;}
+.outcome.win{background:rgba(30,122,76,.12); color:var(--green);}
+.outcome.settle{background:rgba(156,114,34,.12); color:var(--amber);}
+.outcome.loss{background:rgba(160,60,51,.12); color:var(--red);}
+
+.qa-shell{display:grid; grid-template-columns:1fr 300px; gap:18px;}
+.gate-list{display:flex; flex-direction:column; gap:10px;}
+.gate{display:flex; align-items:flex-start; gap:14px; padding:16px 18px; background:var(--bg-raise); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow);}
+.gate-icon{width:26px;height:26px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:14px; margin-top:1px;}
+.gate-icon.pass{background:rgba(30,122,76,.14); color:var(--green);}
+.gate-icon.warn{background:rgba(156,114,34,.14); color:var(--amber);}
+.gate-title{font-size:13.5px; font-weight:500;}
+.gate-desc{font-size:12px; color:var(--ink-dim); margin-top:3px; line-height:1.5;}
+.qa-summary{background:var(--bg-raise); border:1px solid var(--line); border-radius:14px; padding:22px; text-align:center; height:fit-content; box-shadow:var(--shadow);}
+.qa-ring{width:118px; height:118px; border-radius:50%; margin:0 auto 16px; background:conic-gradient(var(--green) 0deg 302deg, var(--line) 302deg 360deg); display:flex; align-items:center; justify-content:center; position:relative;}
+.qa-ring::before{content:''; position:absolute; inset:10px; border-radius:50%; background:var(--bg-raise);}
+.qa-ring span{position:relative; font-family:var(--mono); font-size:22px; font-weight:600;}
+.qa-summary h4{font-size:13.5px; margin-bottom:6px;}
+.qa-summary p{font-size:12px; color:var(--ink-dim); line-height:1.6;}
+
+.learn-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+.learn-panel{background:var(--bg-raise); border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:var(--shadow);}
+.learn-panel h3{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); margin-bottom:16px;}
+.tese-row{display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--line);}
+.tese-row:last-child{border-bottom:none;}
+.tese-name{flex:1; font-size:13px;}
+.tese-name .m{display:block; font-size:10.5px; color:var(--ink-faint); font-family:var(--mono); margin-top:2px;}
+.trend{font-family:var(--mono); font-size:12px; font-weight:600;}
+.trend.up{color:var(--green);} .trend.down{color:var(--red);} .trend.flat{color:var(--ink-faint);}
+.timeline{position:relative; padding-left:20px;}
+.timeline::before{content:''; position:absolute; left:4px; top:4px; bottom:4px; width:1px; background:var(--line-strong);}
+.tl-item{position:relative; padding-bottom:20px;}
+.tl-item::before{content:''; position:absolute; left:-20px; top:3px; width:9px; height:9px; border-radius:50%; background:var(--cyan);}
+.tl-date{font-family:var(--mono); font-size:10px; color:var(--ink-faint);}
+.tl-text{font-size:12.5px; margin-top:3px; line-height:1.55; color:var(--ink-dim);}
+.tl-text b{color:var(--ink); font-weight:500;}
+
+footer{max-width:1240px; margin:60px auto 0; padding:24px 34px; border-top:1px solid var(--line); font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+
+@media(max-width:980px){
+  main{padding:28px 18px;}
+  .gen-shell, .qa-shell, .learn-grid{grid-template-columns:1fr;}
+  .q-row{grid-template-columns:1fr; gap:6px;}
+  .case-row{grid-template-columns:1fr; gap:6px;}
+  .tabs{overflow-x:auto;}
+  .dropzone{flex-direction:column; text-align:center;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark"><i></i><i></i></div>
+    <div class="brand-text">motor de contestações <span>/ evidência</span></div>
+  </div>
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-view="fila">Fila</div>
+    <div class="tab" data-view="geracao">Geração</div>
+    <div class="tab" data-view="similares">Casos similares</div>
+    <div class="tab" data-view="qualidade">Portão de qualidade</div>
+    <div class="tab" data-view="analises">Análises</div>
+    <div class="tab" data-view="padroes">Padrões por cliente</div>
+  </div>
+  <div class="top-right">
+    <div class="theme-toggle" id="themeToggle">
+      <button id="btnLight" class="on" title="Tema claro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+      <button id="btnDark" title="Tema escuro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.5A8.5 8.5 0 1 1 11.5 3 7 7 0 0 0 21 12.5Z"/></svg></button>
+    </div>
+    <div class="env-badge"><span class="env-dot"></span>fila zerada, pronta para testes</div>
+  </div>
+</div>
+
+<main>
+
+  <!-- ============ FILA ============ -->
+  <section class="view active" id="view-fila">
+    <div class="view-head">
+      <div class="kicker">Início</div>
+      <h1>Anexe uma petição inicial para começar</h1>
+      <p>A fila está zerada. Envie o PDF ou o texto de uma petição real para ver a extração automática de dados, o resumo e o tema sugerido. O sistema tenta extrair com IA e usa leitura local por padrão de texto como reserva.</p>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
+      <div class="dropzone-text">
+        <b>Anexar petição inicial</b>
+        <span>Arraste um arquivo aqui ou clique para escolher. Aceita PDF e TXT.</span>
+      </div>
+      <input type="file" id="fileInput" accept=".pdf,.txt">
+    </div>
+
+    <div id="filaBody"></div>
+  </section>
+
+  <!-- ============ GERAÇÃO ============ -->
+  <section class="view" id="view-geracao">
+    <div id="geracaoBody"></div>
+  </section>
+
+  <!-- ============ CASOS SIMILARES (conceito) ============ -->
+  <section class="view" id="view-similares">
+    <div class="view-head">
+      <div class="kicker">Precedentes internos</div>
+      <h1>O que aconteceu da última vez que isso caiu na mesa</h1>
+      <p>Processos internos com a mesma causa raiz, ordenados por semelhança factual, com o desfecho real de cada um.</p>
+    </div>
+    <div class="concept-badge">visão do produto completo, depende do histórico de processos ainda não conectado</div>
+
+    <div class="sim-grid">
+      <div class="sim-card"><div class="n">231</div><div class="l">processos internos no tema mais recorrente do mês</div></div>
+      <div class="sim-card"><div class="n">78%</div><div class="l">taxa de êxito da tese mais usada no tema</div></div>
+      <div class="sim-card"><div class="n">6</div><div class="l">casos com perfil quase idêntico ao caso em análise</div></div>
+    </div>
+
+    <div class="case-list">
+      <div class="case-row head"><div>Processo</div><div>Semelhança</div><div>Correspond.</div><div>Tese usada</div><div>Desfecho</div></div>
+      <div class="case-row"><div class="case-id">0039012-81</div><div class="case-sim">Mesmo tema, autenticação registrada<span class="p">3 operações, valor médio</span></div><div class="match-bar"><div class="match-fill" style="width:96%"></div></div><div style="font-size:12px">Autenticação forte</div><div><span class="outcome win">Improcedente</span></div></div>
+      <div class="case-row"><div class="case-id">0027744-10</div><div class="case-sim">Mesmo padrão factual<span class="p">2 operações, valor baixo</span></div><div class="match-bar"><div class="match-fill" style="width:91%"></div></div><div style="font-size:12px">Autenticação forte</div><div><span class="outcome win">Improcedente</span></div></div>
+      <div class="case-row"><div class="case-id">0015599-27</div><div class="case-sim">Variação sem autenticação<span class="p">1 operação, valor baixo</span></div><div class="match-bar"><div class="match-fill" style="width:74%"></div></div><div style="font-size:12px">Falha de comunicação</div><div><span class="outcome settle">Acordo</span></div></div>
+      <div class="case-row"><div class="case-id">0008821-56</div><div class="case-sim">Cliente reincidente<span class="p">4 operações, valor alto</span></div><div class="match-bar"><div class="match-fill" style="width:69%"></div></div><div style="font-size:12px">Ausência de defeito</div><div><span class="outcome loss">Procedente</span></div></div>
+    </div>
+  </section>
+
+  <!-- ============ PORTÃO DE QUALIDADE (conceito) ============ -->
+  <section class="view" id="view-qualidade">
+    <div class="view-head">
+      <div class="kicker">Antes do advogado ver a peça</div>
+      <h1>O que uma máquina confere melhor que uma pessoa cansada</h1>
+      <p>Prazo, documento, contradição entre teses e existência real da citação, nenhum desses itens deveria depender só da atenção do advogado no fim de um dia longo.</p>
+    </div>
+    <div class="concept-badge">visão do produto completo, roda sobre uma minuta já gerada com teses e documentos anexados</div>
+
+    <div class="qa-shell">
+      <div class="gate-list">
+        <div class="gate"><div class="gate-icon pass">✓</div><div><div class="gate-title">Prazo processual</div><div class="gate-desc">Dentro do prazo de resposta identificado na petição.</div></div></div>
+        <div class="gate"><div class="gate-icon pass">✓</div><div><div class="gate-title">Checklist documental mínimo</div><div class="gate-desc">Documentos exigidos pelo tema localizados e anexados.</div></div></div>
+        <div class="gate"><div class="gate-icon pass">✓</div><div><div class="gate-title">Citações verificadas</div><div class="gate-desc">Toda evidência citada na minuta existe na base e foi conferida automaticamente.</div></div></div>
+        <div class="gate"><div class="gate-icon pass">✓</div><div><div class="gate-title">Teses sem contradição interna</div><div class="gate-desc">Nenhuma tese selecionada nega uma premissa usada por outra tese na mesma minuta.</div></div></div>
+        <div class="gate"><div class="gate-icon warn">!</div><div><div class="gate-title">Histórico de relacionamento</div><div class="gate-desc">Consulta a sistemas de CRM ainda pendente. Não bloqueia a geração, mas fica sinalizada.</div></div></div>
+      </div>
+      <div class="qa-summary">
+        <div class="qa-ring"><span>84%</span></div>
+        <h4>Pronta para revisão</h4>
+        <p>4 de 5 verificações concluídas sem ressalva. A pendência segue visível ao advogado, mas não impede o envio para revisão.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ANÁLISES (real, roda sobre as contestações geradas nesta sessão) ============ -->
+  <section class="view" id="view-analises">
+    <div class="view-head">
+      <div class="kicker">Sobre as contestações geradas nesta sessão</div>
+      <h1>Cada geração vira um dado para melhorar a próxima</h1>
+      <p>Toda contestação gerada aqui passa por um checklist automático. Esta tela junta os resultados de todas as gerações da sessão para apontar padrões: campo que falha com frequência, tema mal coberto pela biblioteca de teses, seção que sai curta demais.</p>
+    </div>
+    <div id="analisesBody"></div>
+  </section>
+
+  <!-- ============ PADRÕES POR CLIENTE ============ -->
+  <section class="view" id="view-padroes">
+    <div class="view-head">
+      <div class="kicker">Identidade visual do documento gerado</div>
+      <h1>Cada cliente com o padrão que pediu</h1>
+      <p>Cadastre logo e margens por cliente. Na hora de gerar ou baixar a contestação, escolha o padrão a aplicar: alguns clientes querem logo e margem específica, outros só a logo, outros nenhum dos dois.</p>
+    </div>
+    <div id="padroesBody"></div>
+  </section>
+
+</main>
+
+<footer>
+  <div>motor de contestações, protótipo funcional de ingestão</div>
+  <div>upload real ativo / demais painéis em visão conceitual</div>
+</footer>
+
+<script>
+/* ---------------- tema ---------------- */
+const root = document.documentElement;
+const btnLight = document.getElementById('btnLight');
+const btnDark = document.getElementById('btnDark');
+function setTheme(t){
+  root.setAttribute('data-theme', t);
+  btnLight.classList.toggle('on', t==='light');
+  btnDark.classList.toggle('on', t==='dark');
+}
+btnLight.addEventListener('click', ()=>setTheme('light'));
+btnDark.addEventListener('click', ()=>setTheme('dark'));
+
+/* ---------------- navegação ---------------- */
+const tabs = document.querySelectorAll('.tab');
+const views = document.querySelectorAll('.view');
+function goView(name){
+  tabs.forEach(x=>x.classList.toggle('active', x.dataset.view===name));
+  views.forEach(v=>v.classList.toggle('active', v.id==='view-'+name));
+}
+tabs.forEach(t=>t.addEventListener('click', ()=>{
+  goView(t.dataset.view);
+  if(t.dataset.view==='analises') renderAnalises();
+  if(t.dataset.view==='padroes') renderPadroes();
+}));
+
+/* ---------------- estado ---------------- */
+let cases = [];
+let analyses = [];
+let idSeq = 1;
+let clientes = [];
+let clienteSeq = 1;
+const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
+
+/* ---------------- biblioteca de teses (modelo validado a partir de 3 contestações reais Agibank) ---------------- */
+const TEMA_PRODUTOS = {
+  'Cartão de crédito consignado': {
+    regularidade: 'Os descontos impugnados são legítimos e encontram lastro no cartão de crédito consignado contratado pela parte autora, mediante assinatura eletrônica, com destaque expresso ao nome e à natureza do produto em todos os documentos da contratação, o que afasta a alegação de confusão com outra modalidade de crédito.',
+  },
+  'RMC (Reserva de Margem Consignável)': {
+    regularidade: 'Os descontos impugnados decorrem de reserva de margem consignável regularmente autorizada para pagamento de fatura de cartão de crédito, conforme previsto nas Instruções Normativas do INSS aplicáveis à contratação eletrônica de crédito consignado, não se confundindo com empréstimo consignado tradicional.',
+  },
+  'RCC (Reserva de Cartão Consignado)': {
+    regularidade: 'O contrato de RCC identificado nos autos está expressamente vinculado à instituição ré, conforme histórico oficial de consignações, distinguindo-se de eventuais contratos de RMC de outras instituições financeiras eventualmente confundidos pela parte autora.',
+  },
+  'Empréstimo consignado': {
+    regularidade: 'Os descontos impugnados têm origem no empréstimo consignado regularmente contratado pela parte autora, mediante assinatura eletrônica, com a transferência do valor correspondente para a conta bancária de sua titularidade.',
+  },
+  'Refinanciamento de empréstimo consignado': {
+    regularidade: 'O contrato impugnado consiste em refinanciamento de empréstimo consignado anterior firmado com a própria instituição financeira ré, que liquidou a operação original e, quando aplicável, gerou crédito complementar transferido à parte autora. Caso o refinanciamento venha a ser anulado, impõe-se a restauração do contrato original, com o aproveitamento das parcelas já processadas para a amortização da dívida primitiva.',
+  },
+  'Seguro (prestamista ou de vida)': {
+    regularidade: 'O seguro impugnado foi contratado pela parte autora por livre e espontânea vontade, mediante assinatura eletrônica, com as condições contratuais apresentadas de forma clara no momento da adesão, não havendo indício de contratação casada ou de ausência de informação adequada.',
+  },
+  'default': {
+    regularidade: 'Os descontos impugnados encontram lastro em operação regularmente contratada pela parte autora, mediante assinatura eletrônica, conforme documentação apresentada nesta defesa.',
+  }
+};
+
+// Blocos fixos: mesmo texto nas 3 peças de referência, não variam por tema. Nunca passam por IA.
+const BLOCOS_FIXOS = {
+  provaContratacao: 'A instituição ré demonstra, a seguir, as etapas percorridas pela parte autora até o recebimento do crédito ou a formalização do produto: procura ou consulta de margem, confirmação da proposta, envio de documento de identificação, reconhecimento biométrico facial e transferência do valor ou formalização do produto, conforme documentos anexados a esta defesa.',
+  biometria: 'A contratação foi formalizada por meio de assinatura eletrônica avançada, nos termos do art. 4º, II, da Lei nº 14.063/2020, mediante autenticação por biometria facial com verificação de vivacidade (liveness) e comparação com o documento de identificação apresentado. Tal forma de autenticação encontra respaldo no art. 10, § 2º, da MP 2.200-2/2001 e no art. 107 do Código Civil. [Citar aqui o precedente do STJ sobre validade da biometria facial mais recente e já conferido na fonte oficial antes do protocolo, não reaproveitar citação de peça anterior sem checagem.]',
+  presuncaoAssinatura: 'Nos termos do art. 411, III, do Código de Processo Civil, presume-se autêntico todo documento não impugnado pela parte contra quem foi produzido. O art. 428, I, do mesmo diploma dispõe que somente a impugnação expressa da autenticidade afasta a fé do documento particular. À míngua de impugnação específica da parte autora quanto à assinatura eletrônica aposta no contrato ora discutido, ela deve ser presumida autêntica.',
+  onusProva: 'Embora a relação discutida possa estar submetida ao Código de Defesa do Consumidor, a inversão do ônus da prova não decorre de forma automática. Nos termos do art. 6º, VIII, do CDC, sua aplicação depende da verossimilhança das alegações ou da hipossuficiência do consumidor. No presente caso, a parte autora limita-se a negar a contratação sem apresentar elementos mínimos que corroborem a alegação, ao passo que a instituição financeira ré demonstra, de forma documentada, a regularidade da operação.',
+  meritoRepeticao: 'Comprovada a regularidade da contratação, a repetição do indébito não é cabível, por ausência de pagamento indevido. Subsidiariamente, em atenção ao princípio da eventualidade, a devolução em dobro esbarra na hipótese de engano justificável (art. 42, parágrafo único, do CDC), e, caso superado esse argumento, deve observar a modulação temporal fixada pelo Superior Tribunal de Justiça no EAREsp 600.663/RS, aplicando-se a dobra somente aos descontos posteriores a 30 de março de 2021, com correção monetária incidente sobre cada parcela a partir da respectiva data (Súmula 43 do STJ).',
+  meritoDanosMorais: 'A ocorrência de descontos eventualmente declarados indevidos não configura, por si só, dano moral in re ipsa. A jurisprudência do Superior Tribunal de Justiça exige a comprovação de gravidade além do mero dissabor, aborrecimento ou transtorno do cotidiano para que se configure o dano moral indenizável, o que não se verifica na petição inicial.',
+  compensacao: 'Nos termos dos arts. 182 e 884 do Código Civil, e subsidiariamente do art. 368 do mesmo diploma, os valores efetivamente transferidos à parte autora em razão da contratação impugnada, incluindo eventual valor liberado em operação de refinanciamento, devem ser deduzidos de qualquer condenação, sob pena de enriquecimento sem causa.',
+  apuracaoIndebito: 'Caso reconhecida a existência de indébito, a base de cálculo da eventual dobra corresponde à diferença entre o total descontado e o valor efetivamente recebido pela parte autora, e não ao total dos descontos. A título de exemplo, se a parte autora recebeu R$ 10.000,00 e sofreu descontos totais de R$ 15.000,00, a repetição em dobro correta é de R$ 10.000,00 (excesso de R$ 5.000,00, duplicado), e não R$ 20.000,00 (dobra sobre o total descontado).',
+  consideracoesFinais: 'Diante do exposto, requer a instituição ré a total improcedência dos pedidos formulados na petição inicial, protestando por todos os meios de prova em direito admitidos, sem prejuízo de juntada posterior de documentos, e reiterando o requerimento de intimação exclusiva em nome do advogado indicado no preâmbulo desta peça.',
+};
+
+// Preliminares condicionais: situacionais, não dependem do tema. O analista marca as aplicáveis antes de gerar.
+const PRELIMINARES_OPCIONAIS = {
+  residencia: { label: 'Ausência de comprovante de residência válido', texto: 'A parte autora deixou de apresentar comprovante de residência atualizado em seu próprio nome, o que é indispensável para atestar, de forma idônea, sua residência e domicílio, nos termos dos arts. 319, II, do Código de Processo Civil e 1º da Lei 6.629/79, tornando duvidosa a aferição da competência territorial.' },
+  ilegitimidade: { label: 'Ilegitimidade passiva quanto a operações não individualizadas', texto: 'Preliminarmente, cumpre reconhecer a ilegitimidade passiva da instituição ré em relação às operações que não estejam individualizadas como de sua titularidade no histórico oficial de consignações (HISCON ou equivalente), sendo indispensável a identificação do número do contrato e da instituição financeira responsável para que se possa atribuir responsabilidade a este réu.' },
+  prescricao: { label: 'Prescrição trienal', texto: 'Ao postular a declaração de inexistência de relação jurídica com a instituição ré, a parte autora afasta a incidência do Código de Defesa do Consumidor quanto a esse pedido específico, sujeitando a pretensão de reparação civil ao prazo prescricional trienal do art. 206, § 3º, V, do Código Civil, contado da data de cada desconto impugnado.' },
+  interesseAgir: { label: 'Ausência de interesse de agir', texto: 'Não há nos autos comprovação de tentativa prévia de solução administrativa da controvérsia junto aos canais de atendimento da instituição ré (central de atendimento, ouvidoria ou Consumidor.gov.br), o que evidencia a ausência de interesse de agir, na modalidade necessidade, para o ajuizamento da presente demanda.' },
+};
+
+function textoTutela(){
+  return 'Quanto ao pedido de tutela de urgência, ausentes os requisitos legais: a probabilidade do direito é afastada pela prova documental da contratação apresentada nesta defesa (ver seção Prova da contratação), e inexiste perigo de dano apto a justificar a medida.';
+}
+
+// Monta a lista de seções da minuta em ordem fixa, pulando as que não se aplicam.
+// A numeração sequencial e a ausência de título repetido são garantidas pela própria função, não por checagem manual.
+function montarSecoes(c){
+  const f = c.fields;
+  const lib = TEMA_PRODUTOS[f.tema] || TEMA_PRODUTOS.default;
+  const extras = c.preliminaresExtras || {};
+  const secoes = [];
+
+  secoes.push({ t: 'Breve resumo da inicial', b: f.resumo });
+
+  const itensPreliminar = [];
+  ['residencia','ilegitimidade','prescricao','interesseAgir'].forEach(k=>{
+    if(extras[k]) itensPreliminar.push(PRELIMINARES_OPCIONAIS[k].texto);
+  });
+  if(f.pedeTutela) itensPreliminar.push(textoTutela());
+  if(itensPreliminar.length){
+    secoes.push({ t: 'Preliminares', b: itensPreliminar.join('\n\n') });
+  }
+
+  secoes.push({ t: 'Enquadramento da controvérsia', b:
+    `O desfecho desta lide está atrelado à resposta dada à seguinte questão: há, ou não, contratação regular do produto identificado como "${f.tema}" pela parte autora junto à instituição ré.` });
+  secoes.push({ t: 'Prova da contratação', b: BLOCOS_FIXOS.provaContratacao });
+  secoes.push({ t: 'Regularidade dos descontos impugnados', b: f.regularidadeTexto || lib.regularidade });
+  secoes.push({ t: 'Validade técnico-jurídica da autenticação por biometria facial', b: BLOCOS_FIXOS.biometria });
+  secoes.push({ t: 'Presunção de autenticidade da assinatura eletrônica não impugnada', b: BLOCOS_FIXOS.presuncaoAssinatura });
+  secoes.push({ t: 'Impossibilidade de inversão do ônus da prova', b: BLOCOS_FIXOS.onusProva });
+  secoes.push({ t: 'Mérito: impugnação específica ao pedido de repetição dos descontos', b: BLOCOS_FIXOS.meritoRepeticao });
+  secoes.push({ t: 'Mérito: impugnação específica ao pedido de danos morais', b: BLOCOS_FIXOS.meritoDanosMorais });
+  secoes.push({ t: 'Necessidade de compensação de valores', b: BLOCOS_FIXOS.compensacao });
+  secoes.push({ t: 'Apuração do valor do indébito', b: BLOCOS_FIXOS.apuracaoIndebito });
+  secoes.push({ t: 'Considerações finais', b: BLOCOS_FIXOS.consideracoesFinais });
+
+  return secoes;
+}
+
+function checkQuality(f, secoes){
+  const notLocated = v => !v || /não localizado/i.test(v);
+  const titulos = secoes.map(s => s.t.trim().toLowerCase());
+  const semTituloRepetido = new Set(titulos).size === titulos.length;
+  const preliminaresIdx = secoes.findIndex(s => s.t === 'Preliminares');
+  const meritoIdx = secoes.findIndex(s => /^mérito/i.test(s.t));
+  const preliminaresAntesDoMerito = preliminaresIdx === -1 || meritoIdx === -1 || preliminaresIdx < meritoIdx;
+  const tutelaTratada = !f.pedeTutela || secoes.some(s => s.t === 'Preliminares' && /tutela de urg/i.test(s.b));
+
+  const checks = [
+    {label:'Número CNJ identificado', pass: !notLocated(f.numeroCNJ)},
+    {label:'Autor identificado', pass: !notLocated(f.autor)},
+    {label:'Réu identificado', pass: !notLocated(f.reu)},
+    {label:'Tema reconhecido pela biblioteca de teses real (Agibank)', pass: !/não identificado/i.test(f.tema||'')},
+    {label:'Numeração sequencial sem duplicação', pass: true},
+    {label:'Nenhum título de seção repetido', pass: semTituloRepetido},
+    {label:'Preliminares agrupadas antes do mérito', pass: preliminaresAntesDoMerito},
+    {label:'Pedido de tutela de urgência tratado, quando identificado na petição', pass: tutelaTratada},
+  ];
+  const passed = checks.filter(c=>c.pass).length;
+  return { score: Math.round((passed/checks.length)*100), checks };
+}
+
+async function tryAiRegularidade(f, rawText, textoModelo){
+  try{
+    const resp = await fetch('/api/anthropic', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        task: 'regularidade',
+        tema: f.tema,
+        resumo: f.resumo,
+        textoModelo,
+        trecho: (rawText||'').slice(0,3000),
+      })
+    });
+    if(!resp.ok) throw new Error('api indisponível');
+    const data = await resp.json();
+    if(!data.text || !data.text.trim()) throw new Error('sem resposta em texto');
+    return data.text.trim();
+  }catch(e){
+    return null;
+  }
+}
+
+/* ---------------- padrões por cliente ---------------- */
+function renderPadroes(){
+  const body = document.getElementById('padroesBody');
+  const resumoModo = cl => cl.headerMode==='anexar' ? 'Cabeçalho anexado (imagem pronta)'
+    : cl.headerMode==='montar' ? 'Cabeçalho montado no sistema' : 'Sem identidade visual';
+  const listaHtml = clientes.length === 0
+    ? `<div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        <b>Nenhum cliente cadastrado</b>
+        <span>Use o formulário ao lado para cadastrar o primeiro padrão de documento.</span>
+      </div>`
+    : `<div class="client-list">${clientes.map(cl => `
+        <div class="client-card">
+          <div class="client-card-head">
+            <div>
+              <div class="client-name">${cl.nome}</div>
+              <div class="client-badges">
+                <span class="client-badge ${cl.headerMode!=='nenhum' ? '' : 'off'}">${resumoModo(cl)}</span>
+                <span class="client-badge ${cl.margensPersonalizadas ? '' : 'off'}">${cl.margensPersonalizadas ? `Margens ${cl.margens.top}/${cl.margens.right}/${cl.margens.bottom}/${cl.margens.left} cm` : 'Margens do sistema'}</span>
+              </div>
+            </div>
+          </div>
+          <div style="border-radius:8px; overflow:hidden; border:1px solid var(--line); margin-bottom:4px;">${previewCabecalho(cl, true)}</div>
+          <div class="client-actions">
+            <button class="mini-btn" data-edit="${cl.id}">Editar</button>
+            <button class="mini-btn danger" data-del="${cl.id}">Remover</button>
+          </div>
+        </div>`).join('')}</div>`;
+
+  body.innerHTML = `<div class="client-shell">
+    <div class="client-form">
+      <h3 id="clientFormTitle">Novo padrão de cliente</h3>
+      <input type="hidden" id="clientEditId" value="">
+      <label class="f-label">Nome do cliente</label>
+      <input class="f-input" id="clientNome" placeholder="ex.: Banco Agibank S.A.">
+
+      <label class="f-label">Cabeçalho do documento</label>
+      <select class="f-input" id="headerMode">
+        <option value="nenhum">Nenhum (documento sem identidade visual)</option>
+        <option value="montar">Montar cabeçalho no sistema</option>
+        <option value="anexar">Anexar cabeçalho pronto (imagem)</option>
+      </select>
+
+      <div id="headerPreviewWrap" style="border-radius:8px; overflow:hidden; border:1px solid var(--line); margin-bottom:14px;"></div>
+
+      <div id="camposMontar">
+        <label class="f-label">Logo</label>
+        <div class="logo-preview" id="logoPreview"><span>nenhuma logo selecionada</span></div>
+        <input type="file" accept="image/*" id="clientLogoInput" class="f-input" style="padding:6px;">
+        <label class="f-label">Posição da logo</label>
+        <select class="f-input" id="headerLogoPos"><option value="left">Esquerda</option><option value="center">Centro</option></select>
+        <label class="f-label">Cor da tarja</label>
+        <input type="color" id="headerCor" value="#1a56db" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line-strong); margin-bottom:14px; background:var(--bg);">
+        <label class="f-check"><input type="checkbox" id="headerPontinhos" checked> Incluir pontinhos decorativos (estilo do exemplo do Agibank)</label>
+      </div>
+
+      <div id="camposAnexar" style="display:none;">
+        <label class="f-label">Imagem do cabeçalho completo (banner)</label>
+        <div class="logo-preview" id="bannerPreview" style="height:56px;"><span>nenhuma imagem selecionada</span></div>
+        <input type="file" accept="image/*" id="bannerInput" class="f-input" style="padding:6px;">
+      </div>
+
+      <label class="f-check"><input type="checkbox" id="clientMargensPersonalizadas"> Usar margens personalizadas (senão, usa o padrão do sistema)</label>
+      <div class="f-row4">
+        <div><label>Superior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgTop" value="2.5"></div>
+        <div><label>Direita (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgRight" value="2.5"></div>
+        <div><label>Inferior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgBottom" value="2.5"></div>
+        <div><label>Esquerda (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgLeft" value="3"></div>
+      </div>
+
+      <button class="btn-generate" id="saveClientBtn" style="width:100%; justify-content:center;">Salvar padrão</button>
+    </div>
+    <div>${listaHtml}</div>
+  </div>`;
+
+  let logoDataUrlTemp = null;
+  let bannerDataUrlTemp = null;
+
+  function estadoAtual(){
+    return {
+      headerMode: document.getElementById('headerMode').value,
+      logoDataUrl: logoDataUrlTemp,
+      headerLogoPos: document.getElementById('headerLogoPos').value,
+      headerCor: document.getElementById('headerCor').value,
+      headerPontinhos: document.getElementById('headerPontinhos').checked,
+      headerBannerDataUrl: bannerDataUrlTemp,
+    };
+  }
+  function atualizarPreview(){
+    document.getElementById('headerPreviewWrap').innerHTML = previewCabecalho(estadoAtual());
+  }
+  function alternarCampos(){
+    const modo = document.getElementById('headerMode').value;
+    document.getElementById('camposMontar').style.display = modo==='montar' ? 'block' : 'none';
+    document.getElementById('camposAnexar').style.display = modo==='anexar' ? 'block' : 'none';
+    atualizarPreview();
+  }
+
+  document.getElementById('headerMode').addEventListener('change', alternarCampos);
+  document.getElementById('headerLogoPos').addEventListener('change', atualizarPreview);
+  document.getElementById('headerCor').addEventListener('input', atualizarPreview);
+  document.getElementById('headerPontinhos').addEventListener('change', atualizarPreview);
+
+  document.getElementById('clientLogoInput').addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      logoDataUrlTemp = ev.target.result;
+      document.getElementById('logoPreview').innerHTML = `<img src="${logoDataUrlTemp}">`;
+      atualizarPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('bannerInput').addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      bannerDataUrlTemp = ev.target.result;
+      document.getElementById('bannerPreview').innerHTML = `<img src="${bannerDataUrlTemp}">`;
+      atualizarPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  alternarCampos();
+
+  document.getElementById('saveClientBtn').addEventListener('click', ()=>{
+    const nome = document.getElementById('clientNome').value.trim();
+    if(!nome){ alert('Informe o nome do cliente.'); return; }
+    const editId = document.getElementById('clientEditId').value;
+    const dados = {
+      nome,
+      ...estadoAtual(),
+      margensPersonalizadas: document.getElementById('clientMargensPersonalizadas').checked,
+      margens: {
+        top: parseFloat(document.getElementById('mgTop').value) || MARGEM_PADRAO.top,
+        right: parseFloat(document.getElementById('mgRight').value) || MARGEM_PADRAO.right,
+        bottom: parseFloat(document.getElementById('mgBottom').value) || MARGEM_PADRAO.bottom,
+        left: parseFloat(document.getElementById('mgLeft').value) || MARGEM_PADRAO.left,
+      },
+    };
+    if(editId){
+      const cl = clientes.find(c=>c.id===parseInt(editId));
+      if(cl){
+        if(!dados.logoDataUrl) dados.logoDataUrl = cl.logoDataUrl;
+        if(!dados.headerBannerDataUrl) dados.headerBannerDataUrl = cl.headerBannerDataUrl;
+        Object.assign(cl, dados);
+      }
+    } else {
+      clientes.push({ id: clienteSeq++, ...dados });
+    }
+    renderPadroes();
+  });
+
+  body.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const cl = clientes.find(c=>c.id===parseInt(btn.dataset.edit));
+      if(!cl) return;
+      document.getElementById('clientFormTitle').textContent = 'Editar padrão de cliente';
+      document.getElementById('clientEditId').value = cl.id;
+      document.getElementById('clientNome').value = cl.nome;
+      document.getElementById('headerMode').value = cl.headerMode || 'nenhum';
+      document.getElementById('headerLogoPos').value = cl.headerLogoPos || 'left';
+      document.getElementById('headerCor').value = cl.headerCor || '#1a56db';
+      document.getElementById('headerPontinhos').checked = cl.headerPontinhos !== false;
+      document.getElementById('clientMargensPersonalizadas').checked = cl.margensPersonalizadas;
+      document.getElementById('mgTop').value = cl.margens.top;
+      document.getElementById('mgRight').value = cl.margens.right;
+      document.getElementById('mgBottom').value = cl.margens.bottom;
+      document.getElementById('mgLeft').value = cl.margens.left;
+      logoDataUrlTemp = cl.logoDataUrl || null;
+      bannerDataUrlTemp = cl.headerBannerDataUrl || null;
+      document.getElementById('logoPreview').innerHTML = logoDataUrlTemp ? `<img src="${logoDataUrlTemp}">` : '<span>nenhuma logo selecionada</span>';
+      document.getElementById('bannerPreview').innerHTML = bannerDataUrlTemp ? `<img src="${bannerDataUrlTemp}">` : '<span>nenhuma imagem selecionada</span>';
+      alternarCampos();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  body.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      clientes = clientes.filter(c=>c.id!==parseInt(btn.dataset.del));
+      renderPadroes();
+    });
+  });
+}
+
+// Pré-visualização HTML do cabeçalho, usada tanto no formulário quanto no card do cliente.
+function previewCabecalho(cfg, mini){
+  if(!cfg.headerMode || cfg.headerMode === 'nenhum'){
+    return `<div style="padding:${mini?'14px':'22px'}; text-align:center; font-family:var(--mono); font-size:11px; color:var(--ink-faint); background:var(--bg-raise-2);">sem identidade visual</div>`;
+  }
+  if(cfg.headerMode === 'anexar'){
+    return cfg.headerBannerDataUrl
+      ? `<img src="${cfg.headerBannerDataUrl}" style="width:100%; display:block;">`
+      : `<div style="padding:${mini?'14px':'22px'}; text-align:center; font-family:var(--mono); font-size:11px; color:var(--ink-faint); background:var(--bg-raise-2);">nenhuma imagem anexada ainda</div>`;
+  }
+  // montado
+  const pontinhos = cfg.headerPontinhos !== false
+    ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#E5484D;margin-left:5px;"></span>
+       <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#F5A623;margin-left:5px;"></span>
+       <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#3DD68C;margin-left:5px;"></span>`
+    : '';
+  const logo = cfg.logoDataUrl ? `<img src="${cfg.logoDataUrl}" style="max-height:26px; max-width:120px;">` : '<span style="font-family:var(--mono); font-size:11px; color:#999;">[logo]</span>';
+  const justify = cfg.headerLogoPos === 'center' ? 'center' : 'flex-start';
+  return `
+    <div style="background:${cfg.headerCor || '#1a56db'}; height:10px;"></div>
+    <div style="background:#fff; padding:10px 16px; display:flex; align-items:center; justify-content:space-between;">
+      <div style="flex:1; display:flex; justify-content:${justify};">${logo}</div>
+      <div>${pontinhos}</div>
+    </div>`;
+}
+
+function buildWordHtml(c){
+  const d = c.contestacao;
+  const f = c.fields;
+  const cliente = clientes.find(cl => cl.id === c.clienteId);
+  const margens = (cliente && cliente.margensPersonalizadas) ? cliente.margens : MARGEM_PADRAO;
+  const cabecalhoHtml = cliente ? previewCabecalho(cliente, false) : '';
+  const cnj = (f.numeroCNJ && !/não localizado/i.test(f.numeroCNJ)) ? f.numeroCNJ : 'número não identificado automaticamente, conferir antes do protocolo';
+  const secoesHtml = d.secoes.map((s, i) =>
+    `<h2>${i+1}. ${s.t}</h2><p>${s.b.split('\n\n').join('</p><p>')}</p>`
+  ).join('\n');
+  return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>Contestação</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<style>
+  @page Section1 { size: 21cm 29.7cm; margin: ${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm; }
+  div.Section1 { page: Section1; }
+  body{font-family:"Times New Roman", serif; font-size:12pt; line-height:1.5; color:#000;}
+  h1{text-align:center; font-size:12pt; text-transform:uppercase; margin-bottom:22pt;}
+  h2{font-size:12pt; text-transform:uppercase; margin-top:18pt; margin-bottom:6pt;}
+  p{text-align:justify; margin-bottom:10pt;}
+  .meta{font-size:10pt; color:#444; margin-bottom:18pt; font-family:Arial, sans-serif;}
+</style></head>
+<body>
+${cabecalhoHtml}
+<div class="Section1" style="padding:0 ${margens.right}cm 0 ${margens.left}cm;">
+  <p class="meta" style="margin-top:16pt;">Processo ${cnj}. Minuta gerada em ${new Date(d.generatedAt).toLocaleString('pt-BR')}, seção "Regularidade dos descontos" ${d.source==='ai' ? 'adaptada com apoio de IA' : 'a partir do modelo padrão'}, demais seções a partir do modelo padrão validado.${cliente ? ` Formatação aplicada: padrão ${cliente.nome}.` : ''} Revisão de advogado obrigatória antes do protocolo.</p>
+  <h1>Excelentíssimo Senhor Doutor Juiz de Direito</h1>
+  <p>${f.reu}, já qualificado nos autos, vem respeitosamente apresentar CONTESTAÇÃO à ação proposta por ${f.autor}, pelos fatos e fundamentos a seguir.</p>
+  ${secoesHtml}
+</div>
+</body></html>`;
+}
+
+function downloadWord(c){
+  const html = buildWordHtml(c);
+  const blob = new Blob(['\ufeff', html], {type:'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const f = c.fields;
+  const safeName = (f.numeroCNJ && !/não localizado/i.test(f.numeroCNJ)) ? f.numeroCNJ.replace(/[^\w.-]/g,'_') : ('processo_'+c.id);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Contestacao_${safeName}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+function printDoc(c){
+  const html = buildWordHtml(c);
+  const w = window.open('', '_blank');
+  if(!w){ alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este arquivo e tente novamente.'); return; }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(), 300);
+}
+
+async function generateContestacao(id){
+  const c = cases.find(x=>x.id===id);
+  if(!c || !c.fields) return;
+  c.genStatus = 'gerando';
+  renderGeracao(id);
+
+  const f = c.fields;
+  const lib = TEMA_PRODUTOS[f.tema] || TEMA_PRODUTOS.default;
+  let source = 'local';
+
+  const aiTexto = await tryAiRegularidade(f, c.rawText, lib.regularidade);
+  if(aiTexto){ f.regularidadeTexto = aiTexto; source = 'ai'; }
+  else { f.regularidadeTexto = lib.regularidade; }
+
+  const secoes = montarSecoes(c);
+  const quality = checkQuality(f, secoes);
+
+  c.contestacao = { secoes, source, generatedAt: new Date() };
+  c.quality = quality;
+  c.genStatus = 'pronto';
+
+  analyses.unshift({ caseId:c.id, name:c.name, tema:f.tema, score:quality.score, checks:quality.checks, source, generatedAt:c.contestacao.generatedAt });
+
+  renderGeracao(id);
+}
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', ()=>fileInput.click());
+dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleFile(e.target.files[0]);
+  fileInput.value='';
+});
+
+async function extractPdfText(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  let text = '';
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(it=>it.str).join(' ') + '\n';
+  }
+  return text;
+}
+
+const TEMA_DICT = [
+  {k:['cartão de crédito consignado','cartão consignado'], tema:'Cartão de crédito consignado'},
+  {k:['reserva de margem consignável','rmc'], tema:'RMC (Reserva de Margem Consignável)'},
+  {k:['reserva de cartão consignado','rcc'], tema:'RCC (Reserva de Cartão Consignado)'},
+  {k:['refinanciamento'], tema:'Refinanciamento de empréstimo consignado'},
+  {k:['empréstimo consignado','emprestimo consignado'], tema:'Empréstimo consignado'},
+  {k:['seguro de vida','seguro prestamista','seguro'], tema:'Seguro (prestamista ou de vida)'},
+];
+
+function heuristicExtract(text){
+  const cnjMatch = text.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+  const valorMatch = text.match(/R\$\s?[\d.,]+/);
+  const lower = text.toLowerCase();
+  let tema = 'Tema não identificado automaticamente, revisar manualmente';
+  for(const t of TEMA_DICT){ if(t.k.some(kw=>lower.includes(kw))){ tema = t.tema; break; } }
+  const autorMatch = text.match(/autor[a]?:?\s*([A-ZÀ-Ú][^\n,.;]{3,60})/i);
+  const reuMatch = text.match(/r[ée]u:?\s*([A-ZÀ-Ú][^\n,.;]{3,60})/i);
+  const pedeTutela = /tutela de urg/i.test(text);
+  const resumo = text.replace(/\s+/g,' ').trim().slice(0,420) + (text.length>420 ? '...' : '');
+  return {
+    numeroCNJ: cnjMatch ? cnjMatch[0] : 'não localizado no texto',
+    valorCausa: valorMatch ? valorMatch[0] : 'não localizado no texto',
+    tema,
+    autor: autorMatch ? autorMatch[1].trim() : 'não localizado automaticamente',
+    reu: reuMatch ? reuMatch[1].trim() : 'não localizado automaticamente',
+    pedeTutela,
+    resumo,
+  };
+}
+
+async function aiExtract(text){
+  try{
+    const resp = await fetch('/api/anthropic', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        task: 'extract',
+        texto: text.slice(0,7000),
+      })
+    });
+    if(!resp.ok) throw new Error('api indisponível');
+    const data = await resp.json();
+    if(!data.text) throw new Error('sem resposta em texto');
+    const clean = data.text.replace(/```json|```/g,'').trim();
+    return JSON.parse(clean);
+  }catch(e){
+    return null;
+  }
+}
+
+async function handleFile(file){
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(!['pdf','txt'].includes(ext)){
+    alert('Formato não suportado neste protótipo. Envie um arquivo PDF ou TXT.');
+    return;
+  }
+  const id = idSeq++;
+  const caseObj = { id, name:file.name, status:'processando', source:null, fields:null, rawText:'', preliminaresExtras:{ residencia:false, ilegitimidade:false, prescricao:false, interesseAgir:false } };
+  cases.unshift(caseObj);
+  renderFila();
+
+  let text = '';
+  try{
+    text = ext==='pdf' ? await extractPdfText(file) : await file.text();
+  }catch(e){
+    caseObj.status = 'erro';
+    caseObj.error = 'Não foi possível ler o arquivo. Tente outro PDF ou um arquivo TXT.';
+    renderFila();
+    return;
+  }
+  caseObj.rawText = text;
+  const pedeTutela = /tutela de urg/i.test(text);
+
+  const local = heuristicExtract(text);
+  caseObj.fields = local;
+  caseObj.source = 'local';
+  caseObj.status = 'pronto';
+  renderFila();
+
+  const ai = await aiExtract(text);
+  if(ai){
+    ai.pedeTutela = pedeTutela; // sempre calculado por padrão de texto, não depende da IA
+    caseObj.fields = ai;
+    caseObj.source = 'ai';
+    renderFila();
+    if(document.getElementById('view-geracao').classList.contains('active') && currentCaseId===id) renderGeracao(id);
+  }
+}
+
+let currentCaseId = null;
+
+function renderFila(){
+  const body = document.getElementById('filaBody');
+  if(cases.length===0){
+    body.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6M9 16h6M9 8h6"/><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/></svg>
+      <b>Nenhum processo carregado</b>
+      <span>Anexe uma petição inicial acima para começar a testar a extração.</span>
+    </div>`;
+    return;
+  }
+  const rows = cases.map(c=>{
+    const tema = c.fields ? c.fields.tema : '';
+    const statusLabel = c.status==='processando' ? 'Lendo e extraindo dados' : c.status==='erro' ? c.error : 'Extração concluída';
+    const pill = c.status==='processando'
+      ? `<span class="route-pill local"><span class="spin"></span>Processando</span>`
+      : c.source==='ai'
+        ? `<span class="route-pill ai"><i></i>Extração por IA</span>`
+        : `<span class="route-pill local"><i></i>Extração local</span>`;
+    return `<div class="q-row" data-id="${c.id}">
+      <div class="qc-tema">${tema || c.name}<span class="sub">${c.name}</span></div>
+      <div class="qc-conf"></div>
+      <div>${pill}</div>
+      <div class="qc-status">${statusLabel}</div>
+      <div class="qc-arrow">${c.status==='pronto' ? '›' : ''}</div>
+    </div>`;
+  }).join('');
+  body.innerHTML = `<div class="queue-table">
+    <div class="q-row head"><div>Processo</div><div></div><div>Extração</div><div>Status</div><div></div></div>
+    ${rows}
+  </div>`;
+  body.querySelectorAll('.q-row[data-id]').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const id = parseInt(row.dataset.id);
+      const c = cases.find(x=>x.id===id);
+      if(c && c.status==='pronto'){ currentCaseId=id; renderGeracao(id); goView('geracao'); }
+    });
+  });
+}
+
+function renderGeracao(id){
+  const c = cases.find(x=>x.id===id);
+  const body = document.getElementById('geracaoBody');
+  if(!c){
+    body.innerHTML = `<div class="empty-state"><b>Nenhum processo selecionado</b><span>Volte para a fila e escolha um processo já processado.</span></div>`;
+    return;
+  }
+  const f = c.fields;
+  const sourceLabel = c.source==='ai' ? 'extraído por IA' : 'extraído localmente, por padrão de texto';
+  const pedidos = f.pedidos && f.pedidos.length ? f.pedidos.map(p=>`<li>${p}</li>`).join('') : '<li>não identificados automaticamente</li>';
+
+  const gerando = c.genStatus==='gerando';
+  const genLabel = gerando ? '<span class="spin"></span> Gerando contestação' : (c.contestacao ? 'Gerar nova versão' : 'Gerar contestação');
+
+  const extras = c.preliminaresExtras || {};
+  const checkboxesHtml = Object.entries(PRELIMINARES_OPCIONAIS).map(([k,v])=>`
+    <label style="display:flex; align-items:flex-start; gap:8px; font-size:12.5px; color:var(--ink-dim); margin-bottom:8px; cursor:pointer;">
+      <input type="checkbox" data-prelim="${k}" ${extras[k] ? 'checked' : ''} style="margin-top:3px;">
+      <span>${v.label}</span>
+    </label>`).join('');
+
+  // corresponde automaticamente ao cliente pelo nome do réu, uma única vez
+  if(c.clienteId === undefined){
+    const match = clientes.find(cl => f.reu && f.reu.toLowerCase().includes(cl.nome.toLowerCase().split(' ')[0]));
+    c.clienteId = match ? match.id : null;
+  }
+  const clienteOptions = `<option value="">Padrão do sistema (sem logo, margens padrão)</option>` +
+    clientes.map(cl => `<option value="${cl.id}" ${c.clienteId===cl.id?'selected':''}>${cl.nome}</option>`).join('');
+
+  body.innerHTML = `
+    <div class="back-link" id="backToFila">‹ voltar para a fila</div>
+    <div class="view-head">
+      <div class="kicker">${c.name}</div>
+      <h1>${f.tema}</h1>
+      <p>Estrutura e teses seguem o modelo padrão validado a partir de três contestações reais do Agibank: numeração sequencial garantida pelo gerador, nenhum título repetido, preliminares sempre agrupadas antes do mérito.</p>
+    </div>
+    <div class="gen-toolbar">
+      <div class="status-chip ${c.source==='ai'?'ai':'local'}"><i></i>${sourceLabel}</div>
+      ${f.pedeTutela ? '<div class="status-chip local"><i></i>tutela de urgência identificada na inicial, seção de preliminares incluída automaticamente</div>' : ''}
+    </div>
+    <div class="gen-shell">
+      <div class="doc-frame">
+        <div class="doc-court">Petição inicial, texto extraído do arquivo</div>
+        <h5>Resumo</h5>
+        <p>${f.resumo}</p>
+        <h5>Pedidos identificados</h5>
+        <ul style="padding-left:18px">${pedidos}</ul>
+        <h5>Texto original extraído</h5>
+        <div class="doc-raw">${(c.rawText||'').slice(0,4000).replace(/</g,'&lt;')}</div>
+      </div>
+      <div class="evidence-col">
+        <div class="evidence-head">Campos extraídos</div>
+        <div class="ev-card"><span class="ev-type">número cnj</span><div class="ev-title">${f.numeroCNJ}</div></div>
+        <div class="ev-card"><span class="ev-type">autor</span><div class="ev-title">${f.autor}</div></div>
+        <div class="ev-card"><span class="ev-type">réu</span><div class="ev-title">${f.reu}</div></div>
+        <div class="ev-card"><span class="ev-type">valor da causa</span><div class="ev-title">${f.valorCausa}</div></div>
+        <div class="ev-card"><span class="ev-type">tema sugerido</span><div class="ev-title">${f.tema}</div><div class="ev-body">Sugestão automática. Revisar antes de prosseguir.</div></div>
+        <div class="ev-card">
+          <span class="ev-type">preliminares condicionais</span>
+          <div class="ev-body" style="margin-top:8px;">${checkboxesHtml}</div>
+        </div>
+        <div class="ev-card">
+          <span class="ev-type">padrão de documento (cliente)</span>
+          <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
+          <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
+        </div>
+        <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="width:100%; justify-content:center; margin-top:4px;">${genLabel}</button>
+      </div>
+    </div>
+    ${c.contestacao ? renderContestacaoBlock(c) : ''}`;
+  document.getElementById('backToFila').addEventListener('click', ()=>goView('fila'));
+  document.getElementById('genBtn').addEventListener('click', ()=>generateContestacao(id));
+  body.querySelectorAll('input[data-prelim]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      if(!c.preliminaresExtras) c.preliminaresExtras = {};
+      c.preliminaresExtras[cb.dataset.prelim] = cb.checked;
+    });
+  });
+  document.getElementById('clienteSelect').addEventListener('change', e=>{
+    c.clienteId = e.target.value ? parseInt(e.target.value) : null;
+  });
+  if(c.contestacao){
+    document.getElementById('downloadDocBtn').addEventListener('click', ()=>downloadWord(c));
+    document.getElementById('printDocBtn').addEventListener('click', ()=>printDoc(c));
+  }
+}
+
+function renderContestacaoBlock(c){
+  const d = c.contestacao;
+  const q = c.quality;
+  const cliente = clientes.find(cl => cl.id === c.clienteId);
+  const margens = (cliente && cliente.margensPersonalizadas) ? cliente.margens : MARGEM_PADRAO;
+  const padraoLabel = cliente
+    ? `padrão ${cliente.nome} (${cliente.headerMode==='anexar' ? 'cabeçalho anexado' : cliente.headerMode==='montar' ? 'cabeçalho montado' : 'sem cabeçalho'}, margens ${cliente.margensPersonalizadas ? 'personalizadas' : 'do sistema'})`
+    : 'padrão do sistema (sem identidade visual, margens padrão)';
+  const ringDeg = Math.round(q.score*3.6);
+  const ringColor = q.score>=80 ? 'var(--green)' : q.score>=60 ? 'var(--amber)' : 'var(--red)';
+  const checksHtml = q.checks.map(ch=>`<div class="gate"><div class="gate-icon ${ch.pass?'pass':'warn'}">${ch.pass?'✓':'!'}</div><div><div class="gate-title">${ch.label}</div></div></div>`).join('');
+  const secoesHtml = d.secoes.map((s, i) => `
+    <h5>${i+1}. ${s.t}</h5>
+    ${s.b.split('\n\n').map(p=>`<p>${p}</p>`).join('')}
+  `).join('');
+  const cabecalhoHtml = cliente ? previewCabecalho(cliente, false) : '';
+  const cabecalhoSangrado = cabecalhoHtml
+    ? `<div style="margin:-${margens.top}cm -${margens.right}cm 16px -${margens.left}cm;">${cabecalhoHtml}</div>`
+    : '';
+  return `
+    <div class="view-head" style="margin-top:38px">
+      <div class="kicker">Minuta de contestação, modelo padrão validado</div>
+      <h1 style="font-size:22px">Rascunho gerado</h1>
+      <p>Apenas a seção "Regularidade dos descontos impugnados" é adaptada ao caso concreto (com IA, quando disponível, ou com o texto padrão do tema). As demais seções usam o texto fixo validado a partir das três contestações reais. Revisão de um advogado é obrigatória antes de qualquer protocolo.</p>
+    </div>
+    <div class="gen-toolbar">
+      <div class="status-chip" style="color:var(--ink-dim)"><i style="background:var(--ink-faint)"></i>gerado em ${new Date(d.generatedAt).toLocaleString('pt-BR')}</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-generate" id="downloadDocBtn" style="background:var(--green)">Baixar contestação (.doc)</button>
+        <button class="btn-generate" id="printDocBtn" style="background:var(--ink-dim)">Imprimir / salvar PDF</button>
+      </div>
+    </div>
+    <div class="qa-shell">
+      <div>
+        <div class="preview-label">pré-visualização em escala real, folha A4 (21 x 29,7 cm), margens ${cliente && cliente.margensPersonalizadas ? 'personalizadas do cliente' : 'padrão do sistema'}</div>
+        <div class="page-preview-wrap">
+          <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm;">
+            ${cabecalhoSangrado}
+            <div class="doc-court">Excelentíssimo senhor doutor juiz de direito</div>
+            ${secoesHtml}
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="qa-summary">
+          <div class="qa-ring" style="background:conic-gradient(${ringColor} 0deg ${ringDeg}deg, var(--line) ${ringDeg}deg 360deg)"><span>${q.score}%</span></div>
+          <h4>Checklist automático</h4>
+          <p>Regras derivadas da validação das três peças reais. O histórico completo fica na aba Análises.</p>
+        </div>
+        <div class="gate-list" style="margin-top:12px">${checksHtml}</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px"><b>Sobre o arquivo baixado.</b> O .doc abre no Word com a formatação já pronta para revisão e ajuste, aplicando o ${padraoLabel}. É esse arquivo que deve ser anexado ao Iilex, ao GED ou enviado ao advogado responsável, não a tela do navegador.</div>`;
+}
+
+function renderAnalises(){
+  const body = document.getElementById('analisesBody');
+  if(analyses.length===0){
+    body.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M13 4v5h5"/></svg>
+      <b>Nenhuma contestação gerada ainda</b>
+      <span>Vá até um processo na fila, clique em Gerar contestação, e volte aqui.</span>
+    </div>`;
+    return;
+  }
+  const avg = Math.round(analyses.reduce((s,a)=>s+a.score,0)/analyses.length);
+  const failCount = {};
+  analyses.forEach(a=>a.checks.forEach(ch=>{ if(!ch.pass) failCount[ch.label]=(failCount[ch.label]||0)+1; }));
+  const topFail = Object.entries(failCount).sort((a,b)=>b[1]-a[1])[0];
+
+  const rows = analyses.map(a=>`
+    <div class="case-row">
+      <div class="case-id">#${a.caseId}</div>
+      <div class="case-sim">${a.tema}<span class="p">${a.name}</span></div>
+      <div></div>
+      <div style="font-size:12px">${a.source==='ai' ? 'gerado por IA' : 'modelo local'}</div>
+      <div><span class="outcome ${a.score>=80?'win':a.score>=60?'settle':'loss'}">${a.score}%</span></div>
+    </div>`).join('');
+
+  body.innerHTML = `
+    <div class="sim-grid">
+      <div class="sim-card"><div class="n">${analyses.length}</div><div class="l">contestações geradas nesta sessão</div></div>
+      <div class="sim-card"><div class="n">${avg}%</div><div class="l">pontuação média do checklist automático</div></div>
+      <div class="sim-card"><div class="n" style="font-size:14px; line-height:1.4">${topFail ? topFail[0] : 'nenhuma falha recorrente'}</div><div class="l">${topFail ? `falhou em ${topFail[1]} de ${analyses.length} gerações` : 'todos os checklists passaram integralmente'}</div></div>
+    </div>
+    <div class="case-list">
+      <div class="case-row head"><div>ID</div><div>Tema / arquivo</div><div></div><div>Origem</div><div>Pontuação</div></div>
+      ${rows}
+    </div>
+    <div class="callout" style="margin-top:16px"><b>Como isso melhora o sistema.</b> Quando um mesmo campo ou tema aparece repetidamente na lista de falhas, é o sinal de onde investir primeiro: ajustar a extração, ampliar a biblioteca de teses para aquele tema, ou refinar o texto do modelo usado na geração.</div>`;
+}
+
+renderFila();
+</script>
+</body>
+</html>
