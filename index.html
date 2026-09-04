@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <style>
 :root{
   --mono:'IBM Plex Mono', monospace;
@@ -95,7 +96,7 @@ html[data-theme="light"] body{
 .tab:hover{color:var(--ink);}
 .tab.active{background:var(--cyan-dim); color:var(--cyan); box-shadow:inset 0 0 0 1px rgba(14,110,104,.3);}
 
-.top-right{display:flex; align-items:center; gap:12px;}
+.top-right{display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-end; row-gap:8px;}
 .theme-toggle{
   display:flex; align-items:center; gap:3px; background:var(--bg-raise); border:1px solid var(--line);
   border-radius:20px; padding:3px; cursor:pointer;
@@ -109,7 +110,7 @@ html[data-theme="light"] body{
 .env-badge{
   font-family:var(--mono); font-size:10px; color:var(--ink-faint);
   border:1px solid var(--line-strong); padding:5px 10px; border-radius:20px;
-  display:flex; align-items:center; gap:6px;
+  display:flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0;
 }
 .env-dot{width:6px;height:6px;border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green);}
 
@@ -370,7 +371,7 @@ html[data-theme="dark"] .auth-screen{
 /* ---------- usuário / topo ---------- */
 .user-chip{
   font-family:var(--mono); font-size:11px; color:var(--ink-dim); display:flex; align-items:center; gap:8px;
-  border:1px solid var(--line-strong); padding:5px 6px 5px 12px; border-radius:20px;
+  border:1px solid var(--line-strong); padding:5px 6px 5px 12px; border-radius:20px; white-space:nowrap; flex-shrink:0;
 }
 .user-chip .role{color:var(--cyan);}
 .user-chip button{
@@ -474,16 +475,16 @@ html[data-theme="dark"] .auth-screen{
     <div class="view-head">
       <div class="kicker">Início</div>
       <h1>Anexe uma petição inicial para começar</h1>
-      <p>A fila está zerada. Envie o PDF ou o texto de uma petição real para ver a extração automática de dados, o resumo e o tema sugerido. O sistema tenta extrair com IA e usa leitura local por padrão de texto como reserva.</p>
+      <p>A fila está zerada. Envie o PDF, o DOCX ou o texto de uma petição real para ver a extração automática de dados, o resumo e o tema sugerido. O sistema tenta extrair com IA e usa leitura local por padrão de texto como reserva.</p>
     </div>
 
     <div class="dropzone" id="dropzone">
       <div class="dropzone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
       <div class="dropzone-text">
         <b>Anexar petição inicial</b>
-        <span>Arraste um arquivo aqui ou clique para escolher. Aceita PDF e TXT.</span>
+        <span>Arraste um arquivo aqui ou clique para escolher. Aceita PDF, DOCX e TXT.</span>
       </div>
-      <input type="file" id="fileInput" accept=".pdf,.txt">
+      <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
     </div>
 
     <div id="filaBody"></div>
@@ -673,6 +674,14 @@ function showApp(){
   document.getElementById('tabAdmin').style.display = currentUser.papel === 'admin' ? '' : 'none';
   document.getElementById('userChipName').textContent = currentUser.usuario;
   document.getElementById('userChipRole').textContent = currentUser.papel === 'admin' ? 'admin' : 'operador';
+  // Troca de usuário no mesmo navegador (logout/login sem recarregar a página) não pode
+  // deixar na tela dados renderizados por conta do usuário anterior: sempre volta para a
+  // fila (filtrada para o usuário atual) e limpa a tela de geração de um caso específico.
+  filaFiltro = 'todos';
+  currentCaseId = null;
+  document.getElementById('geracaoBody').innerHTML = '';
+  goView('fila');
+  renderFila();
 }
 
 function tentarLogin(){
@@ -689,7 +698,7 @@ function tentarLogin(){
   currentUser = u;
   setSession(u.id);
   if(u.trocarSenha){ showChangePw(); }
-  else { showApp(); goView('fila'); }
+  else { showApp(); }
 }
 
 function confirmarTrocaSenha(){
@@ -706,7 +715,6 @@ function confirmarTrocaSenha(){
   saveUsers(users);
   currentUser = u;
   showApp();
-  goView('fila');
 }
 
 function logout(){
@@ -836,6 +844,7 @@ let idSeq = 1;
 let clientes = [];
 let clienteSeq = 1;
 const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
+let filaFiltro = 'todos'; // 'todos' | 'meus' — só tem efeito para papel admin, operador sempre vê só os seus
 
 /* ---------------- biblioteca de teses (modelo validado a partir de 3 contestações reais Agibank) ---------------- */
 const TEMA_PRODUTOS = {
@@ -1311,16 +1320,22 @@ async function generateContestacao(id){
   const secoes = montarSecoes(c);
   const quality = checkQuality(f, secoes);
 
-  c.contestacao = { secoes, source, generatedAt: new Date() };
+  c.contestacao = { secoes, source, generatedAt: new Date(), geradoPor: currentUser ? currentUser.usuario : null };
   c.quality = quality;
   c.genStatus = 'pronto';
+  // nova geração reabre a revisão obrigatória: o conteúdo mudou, a confirmação anterior não vale mais
+  c.revisao = { advogadoOk:false, stjOk:false, confirmadoPor:null, confirmadoEm:null };
 
-  analyses.unshift({ caseId:c.id, name:c.name, tema:f.tema, score:quality.score, checks:quality.checks, source, generatedAt:c.contestacao.generatedAt });
+  analyses.unshift({ caseId:c.id, name:c.name, tema:f.tema, score:quality.score, checks:quality.checks, source, generatedAt:c.contestacao.generatedAt, geradoPor:c.contestacao.geradoPor });
 
   renderGeracao(id);
 }
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+// Guardado: se o CDN do pdf.js estiver bloqueado ou fora do ar, o resto do script
+// (login, admin, etc.) não deve parar de funcionar por causa disso.
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
@@ -1337,6 +1352,7 @@ fileInput.addEventListener('change', e=>{
 });
 
 async function extractPdfText(file){
+  if(!window.pdfjsLib) throw new Error('leitor de PDF indisponível no momento');
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data:buf}).promise;
   let text = '';
@@ -1346,6 +1362,13 @@ async function extractPdfText(file){
     text += content.items.map(it=>it.str).join(' ') + '\n';
   }
   return text;
+}
+
+async function extractDocxText(file){
+  if(!window.mammoth) throw new Error('leitor de DOCX indisponível no momento');
+  const buf = await file.arrayBuffer();
+  const resultado = await mammoth.extractRawText({ arrayBuffer: buf });
+  return resultado.value;
 }
 
 const TEMA_DICT = [
@@ -1398,23 +1421,75 @@ async function aiExtract(text){
   }
 }
 
+// Soma dias úteis a uma data (só pula sábado e domingo). Estimativa: não conhece feriados
+// forenses locais nem suspensões de prazo específicas de cada comarca/tribunal, por isso
+// o prazo calculado deve sempre ser conferido no processo oficial antes de confiar nele.
+function somarDiasUteis(dataBase, dias){
+  const d = new Date(dataBase);
+  let restante = dias;
+  while(restante > 0){
+    d.setDate(d.getDate() + 1);
+    const diaSemana = d.getDay();
+    if(diaSemana !== 0 && diaSemana !== 6) restante--;
+  }
+  return d;
+}
+
+function diasUteisRestantes(dataLimite){
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const limite = new Date(dataLimite); limite.setHours(0,0,0,0);
+  let dias = 0;
+  const d = new Date(hoje);
+  const sinal = limite >= hoje ? 1 : -1;
+  while(d.getTime() !== limite.getTime()){
+    d.setDate(d.getDate() + sinal);
+    const diaSemana = d.getDay();
+    if(diaSemana !== 0 && diaSemana !== 6) dias += sinal;
+  }
+  return dias;
+}
+
+function recalcularPrazo(c){
+  if(!c.dataCitacao){ c.dataLimite = null; return; }
+  const base = new Date(c.dataCitacao + 'T00:00:00');
+  c.dataLimite = somarDiasUteis(base, c.prazoDias || 15);
+}
+
+function prazoBadgeHtml(c){
+  if(!c.dataLimite) return '';
+  const restantes = diasUteisRestantes(c.dataLimite);
+  const cor = restantes < 0 ? 'var(--red)' : restantes <= 3 ? 'var(--red)' : restantes <= 7 ? 'var(--amber)' : 'var(--green)';
+  const texto = restantes < 0 ? `vencido há ${Math.abs(restantes)}d úteis` : restantes === 0 ? 'vence hoje' : `${restantes}d úteis restantes`;
+  return `<span class="route-pill" style="color:${cor}; background:color-mix(in srgb, ${cor} 14%, transparent);" title="Prazo estimado, sem calendário de feriados forenses. Conferir no processo oficial."><i style="background:${cor}"></i>${texto}</span>`;
+}
+
 async function handleFile(file){
   const ext = file.name.split('.').pop().toLowerCase();
-  if(!['pdf','txt'].includes(ext)){
-    alert('Formato não suportado neste protótipo. Envie um arquivo PDF ou TXT.');
+  if(!['pdf','docx','txt'].includes(ext)){
+    alert('Formato não suportado neste protótipo. Envie um arquivo PDF, DOCX ou TXT.');
     return;
   }
   const id = idSeq++;
-  const caseObj = { id, name:file.name, status:'processando', source:null, fields:null, rawText:'', preliminaresExtras:{ residencia:false, ilegitimidade:false, prescricao:false, interesseAgir:false } };
+  const caseObj = {
+    id, name:file.name, status:'processando', source:null, fields:null, rawText:'',
+    preliminaresExtras:{ residencia:false, ilegitimidade:false, prescricao:false, interesseAgir:false },
+    criadoPor: currentUser ? currentUser.usuario : null,
+    criadoEm: new Date(),
+    dataCitacao: null, prazoDias: 15, dataLimite: null,
+    desfecho: 'pendente',
+    revisao: { advogadoOk:false, stjOk:false, confirmadoPor:null, confirmadoEm:null },
+  };
   cases.unshift(caseObj);
   renderFila();
 
   let text = '';
   try{
-    text = ext==='pdf' ? await extractPdfText(file) : await file.text();
+    text = ext==='pdf' ? await extractPdfText(file) : ext==='docx' ? await extractDocxText(file) : await file.text();
   }catch(e){
     caseObj.status = 'erro';
-    caseObj.error = 'Não foi possível ler o arquivo. Tente outro PDF ou um arquivo TXT.';
+    caseObj.error = ext==='docx'
+      ? 'Não foi possível ler o arquivo DOCX. Tente novamente ou envie um PDF ou TXT.'
+      : 'Não foi possível ler o arquivo. Tente outro PDF ou um arquivo TXT.';
     renderFila();
     return;
   }
@@ -1441,15 +1516,27 @@ let currentCaseId = null;
 
 function renderFila(){
   const body = document.getElementById('filaBody');
-  if(cases.length===0){
-    body.innerHTML = `<div class="empty-state">
+  const souAdmin = currentUser && currentUser.papel === 'admin';
+  const visiveis = souAdmin && filaFiltro === 'todos'
+    ? cases
+    : cases.filter(c => currentUser && c.criadoPor === currentUser.usuario);
+
+  const filtroHtml = souAdmin ? `
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="mini-btn" id="filtroTodos" style="${filaFiltro==='todos' ? 'color:var(--cyan); border-color:var(--cyan);' : ''}">Todos os processos (${cases.length})</button>
+      <button class="mini-btn" id="filtroMeus" style="${filaFiltro==='meus' ? 'color:var(--cyan); border-color:var(--cyan);' : ''}">Só os meus (${cases.filter(c=>currentUser && c.criadoPor===currentUser.usuario).length})</button>
+    </div>` : '';
+
+  if(visiveis.length===0){
+    body.innerHTML = filtroHtml + `<div class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6M9 16h6M9 8h6"/><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/></svg>
       <b>Nenhum processo carregado</b>
       <span>Anexe uma petição inicial acima para começar a testar a extração.</span>
     </div>`;
+    wireFiltroFila();
     return;
   }
-  const rows = cases.map(c=>{
+  const rows = visiveis.map(c=>{
     const tema = c.fields ? c.fields.tema : '';
     const statusLabel = c.status==='processando' ? 'Lendo e extraindo dados' : c.status==='erro' ? c.error : 'Extração concluída';
     const pill = c.status==='processando'
@@ -1458,15 +1545,15 @@ function renderFila(){
         ? `<span class="route-pill ai"><i></i>Extração por IA</span>`
         : `<span class="route-pill local"><i></i>Extração local</span>`;
     return `<div class="q-row" data-id="${c.id}">
-      <div class="qc-tema">${tema || c.name}<span class="sub">${c.name}</span></div>
-      <div class="qc-conf"></div>
+      <div class="qc-tema">${tema || c.name}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}</span></div>
+      <div class="qc-conf">${prazoBadgeHtml(c)}</div>
       <div>${pill}</div>
       <div class="qc-status">${statusLabel}</div>
       <div class="qc-arrow">${c.status==='pronto' ? '›' : ''}</div>
     </div>`;
   }).join('');
-  body.innerHTML = `<div class="queue-table">
-    <div class="q-row head"><div>Processo</div><div></div><div>Extração</div><div>Status</div><div></div></div>
+  body.innerHTML = filtroHtml + `<div class="queue-table">
+    <div class="q-row head"><div>Processo</div><div>Prazo</div><div>Extração</div><div>Status</div><div></div></div>
     ${rows}
   </div>`;
   body.querySelectorAll('.q-row[data-id]').forEach(row=>{
@@ -1476,6 +1563,14 @@ function renderFila(){
       if(c && c.status==='pronto'){ currentCaseId=id; renderGeracao(id); goView('geracao'); }
     });
   });
+  wireFiltroFila();
+}
+
+function wireFiltroFila(){
+  const btnTodos = document.getElementById('filtroTodos');
+  const btnMeus = document.getElementById('filtroMeus');
+  if(btnTodos) btnTodos.addEventListener('click', ()=>{ filaFiltro='todos'; renderFila(); });
+  if(btnMeus) btnMeus.addEventListener('click', ()=>{ filaFiltro='meus'; renderFila(); });
 }
 
 function renderGeracao(id){
@@ -1536,6 +1631,15 @@ function renderGeracao(id){
         <div class="ev-card"><span class="ev-type">valor da causa</span><div class="ev-title">${f.valorCausa}</div></div>
         <div class="ev-card"><span class="ev-type">tema sugerido</span><div class="ev-title">${f.tema}</div><div class="ev-body">Sugestão automática. Revisar antes de prosseguir.</div></div>
         <div class="ev-card">
+          <span class="ev-type">prazo processual (estimativa)</span>
+          <div class="f-row4" style="grid-template-columns:1fr 90px; margin-top:8px; margin-bottom:6px;">
+            <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Data da citação/intimação</label><input class="f-input" style="margin-bottom:0" type="date" id="dataCitacaoInput" value="${c.dataCitacao || ''}"></div>
+            <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Dias úteis</label><input class="f-input" style="margin-bottom:0" type="number" min="1" id="prazoDiasInput" value="${c.prazoDias || 15}"></div>
+          </div>
+          <div class="ev-body" id="prazoResultado">${c.dataLimite ? `vence em ${new Date(c.dataLimite).toLocaleDateString('pt-BR')} (${diasUteisRestantes(c.dataLimite)}d úteis)` : 'informe a data da citação para calcular'}</div>
+          <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Estimativa por dias úteis (só desconta sábado e domingo, sem calendário de feriados forenses). Sempre conferir o prazo real no processo oficial.</div>
+        </div>
+        <div class="ev-card">
           <span class="ev-type">preliminares condicionais</span>
           <div class="ev-body" style="margin-top:8px;">${checkboxesHtml}</div>
         </div>
@@ -1543,6 +1647,16 @@ function renderGeracao(id){
           <span class="ev-type">padrão de documento (cliente)</span>
           <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
           <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
+        </div>
+        <div class="ev-card">
+          <span class="ev-type">desfecho real do processo</span>
+          <select id="desfechoSelect" class="f-input" style="margin:8px 0 0;">
+            <option value="pendente" ${c.desfecho==='pendente'?'selected':''}>Pendente / sem decisão ainda</option>
+            <option value="procedente" ${c.desfecho==='procedente'?'selected':''}>Procedente (perda)</option>
+            <option value="improcedente" ${c.desfecho==='improcedente'?'selected':''}>Improcedente (êxito)</option>
+            <option value="acordo" ${c.desfecho==='acordo'?'selected':''}>Acordo</option>
+          </select>
+          <div class="ev-body">Registrar quando houver decisão. Alimenta a taxa de êxito real na aba Análises.</div>
         </div>
         <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="width:100%; justify-content:center; margin-top:4px;">${genLabel}</button>
       </div>
@@ -1559,9 +1673,47 @@ function renderGeracao(id){
   document.getElementById('clienteSelect').addEventListener('change', e=>{
     c.clienteId = e.target.value ? parseInt(e.target.value) : null;
   });
+  document.getElementById('desfechoSelect').addEventListener('change', e=>{
+    c.desfecho = e.target.value;
+  });
+  function atualizarPrazoGeracao(){
+    c.dataCitacao = document.getElementById('dataCitacaoInput').value || null;
+    c.prazoDias = parseInt(document.getElementById('prazoDiasInput').value) || 15;
+    recalcularPrazo(c);
+    document.getElementById('prazoResultado').textContent = c.dataLimite
+      ? `vence em ${new Date(c.dataLimite).toLocaleDateString('pt-BR')} (${diasUteisRestantes(c.dataLimite)}d úteis)`
+      : 'informe a data da citação para calcular';
+  }
+  document.getElementById('dataCitacaoInput').addEventListener('change', atualizarPrazoGeracao);
+  document.getElementById('prazoDiasInput').addEventListener('change', atualizarPrazoGeracao);
   if(c.contestacao){
-    document.getElementById('downloadDocBtn').addEventListener('click', ()=>downloadWord(c));
-    document.getElementById('printDocBtn').addEventListener('click', ()=>printDoc(c));
+    const revisao = c.revisao || { advogadoOk:false, stjOk:false };
+    const btnDownload = document.getElementById('downloadDocBtn');
+    const btnPrint = document.getElementById('printDocBtn');
+    function atualizarGateRevisao(){
+      const liberado = revisao.advogadoOk && revisao.stjOk;
+      btnDownload.disabled = !liberado;
+      btnPrint.disabled = !liberado;
+      const infoEl = document.getElementById('confirmadoInfo');
+      infoEl.textContent = revisao.confirmadoPor
+        ? `confirmado por ${revisao.confirmadoPor} em ${new Date(revisao.confirmadoEm).toLocaleString('pt-BR')}`
+        : '';
+    }
+    document.getElementById('revisaoAdvogadoCheck').addEventListener('change', e=>{
+      revisao.advogadoOk = e.target.checked;
+      if(revisao.advogadoOk && revisao.stjOk){ revisao.confirmadoPor = currentUser.usuario; revisao.confirmadoEm = new Date(); }
+      c.revisao = revisao;
+      atualizarGateRevisao();
+    });
+    document.getElementById('revisaoStjCheck').addEventListener('change', e=>{
+      revisao.stjOk = e.target.checked;
+      if(revisao.advogadoOk && revisao.stjOk){ revisao.confirmadoPor = currentUser.usuario; revisao.confirmadoEm = new Date(); }
+      c.revisao = revisao;
+      atualizarGateRevisao();
+    });
+    atualizarGateRevisao();
+    btnDownload.addEventListener('click', ()=>downloadWord(c));
+    btnPrint.addEventListener('click', ()=>printDoc(c));
   }
 }
 
@@ -1584,6 +1736,8 @@ function renderContestacaoBlock(c){
   const cabecalhoSangrado = cabecalhoHtml
     ? `<div style="margin:-${margens.top}cm -${margens.right}cm 16px -${margens.left}cm;">${cabecalhoHtml}</div>`
     : '';
+  const revisao = c.revisao || { advogadoOk:false, stjOk:false, confirmadoPor:null, confirmadoEm:null };
+  const liberadoParaBaixar = revisao.advogadoOk && revisao.stjOk;
   return `
     <div class="view-head" style="margin-top:38px">
       <div class="kicker">Minuta de contestação, modelo padrão validado</div>
@@ -1591,13 +1745,25 @@ function renderContestacaoBlock(c){
       <p>Apenas a seção "Regularidade dos descontos impugnados" é adaptada ao caso concreto (com IA, quando disponível, ou com o texto padrão do tema). As demais seções usam o texto fixo validado a partir das três contestações reais. Revisão de um advogado é obrigatória antes de qualquer protocolo.</p>
     </div>
     <div class="gen-toolbar">
-      <div class="status-chip" style="color:var(--ink-dim)"><i style="background:var(--ink-faint)"></i>gerado em ${new Date(d.generatedAt).toLocaleString('pt-BR')}</div>
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button class="btn-generate" id="downloadDocBtn" style="background:var(--green)">Baixar contestação (.doc)</button>
-        <button class="btn-generate" id="printDocBtn" style="background:var(--ink-dim)">Imprimir / salvar PDF</button>
+      <div class="status-chip" style="color:var(--ink-dim)"><i style="background:var(--ink-faint)"></i>gerado em ${new Date(d.generatedAt).toLocaleString('pt-BR')}${d.geradoPor ? ` por ${d.geradoPor}` : ''}</div>
+    </div>
+    <div class="callout">
+      <b>Antes de liberar o arquivo, confirme:</b>
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:10px; cursor:pointer;">
+        <input type="checkbox" id="revisaoAdvogadoCheck" ${revisao.advogadoOk ? 'checked' : ''} style="margin-top:3px;">
+        <span>Um advogado revisou o conteúdo completo desta minuta e está de acordo com o texto antes do protocolo.</span>
+      </label>
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; cursor:pointer;">
+        <input type="checkbox" id="revisaoStjCheck" ${revisao.stjOk ? 'checked' : ''} style="margin-top:3px;">
+        <span>A citação do STJ sobre biometria facial (seção "Validade técnico-jurídica...") foi conferida na fonte oficial e está atualizada.</span>
+      </label>
+      <div id="confirmadoInfo" style="margin-top:10px; font-size:11px; color:var(--ink-faint); font-family:var(--mono);">${revisao.confirmadoPor ? `confirmado por ${revisao.confirmadoPor} em ${new Date(revisao.confirmadoEm).toLocaleString('pt-BR')}` : ''}</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+        <button class="btn-generate" id="downloadDocBtn" style="background:var(--green)" ${liberadoParaBaixar?'':'disabled'}>Baixar contestação (.doc)</button>
+        <button class="btn-generate" id="printDocBtn" style="background:var(--ink-dim)" ${liberadoParaBaixar?'':'disabled'}>Imprimir / salvar PDF</button>
       </div>
     </div>
-    <div class="qa-shell">
+    <div class="qa-shell" style="margin-top:16px">
       <div>
         <div class="preview-label">pré-visualização em escala real, folha A4 (21 x 29,7 cm), margens ${cliente && cliente.margensPersonalizadas ? 'personalizadas do cliente' : 'padrão do sistema'}</div>
         <div class="page-preview-wrap">
@@ -1622,7 +1788,11 @@ function renderContestacaoBlock(c){
 
 function renderAnalises(){
   const body = document.getElementById('analisesBody');
-  if(analyses.length===0){
+  const souAdmin = currentUser && currentUser.papel === 'admin';
+  const analysesVisiveis = souAdmin ? analyses : analyses.filter(a => a.geradoPor === (currentUser && currentUser.usuario));
+  const casesVisiveis = souAdmin ? cases : cases.filter(c => c.criadoPor === (currentUser && currentUser.usuario));
+
+  if(analysesVisiveis.length===0){
     body.innerHTML = `<div class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M13 4v5h5"/></svg>
       <b>Nenhuma contestação gerada ainda</b>
@@ -1630,31 +1800,39 @@ function renderAnalises(){
     </div>`;
     return;
   }
-  const avg = Math.round(analyses.reduce((s,a)=>s+a.score,0)/analyses.length);
+  const avg = Math.round(analysesVisiveis.reduce((s,a)=>s+a.score,0)/analysesVisiveis.length);
   const failCount = {};
-  analyses.forEach(a=>a.checks.forEach(ch=>{ if(!ch.pass) failCount[ch.label]=(failCount[ch.label]||0)+1; }));
+  analysesVisiveis.forEach(a=>a.checks.forEach(ch=>{ if(!ch.pass) failCount[ch.label]=(failCount[ch.label]||0)+1; }));
   const topFail = Object.entries(failCount).sort((a,b)=>b[1]-a[1])[0];
 
-  const rows = analyses.map(a=>`
+  const decididos = casesVisiveis.filter(c => c.desfecho && c.desfecho !== 'pendente');
+  const exitos = decididos.filter(c => c.desfecho === 'improcedente' || c.desfecho === 'acordo').length;
+  const taxaExito = decididos.length ? Math.round((exitos/decididos.length)*100) : null;
+
+  const rows = analysesVisiveis.map(a=>`
     <div class="case-row">
       <div class="case-id">#${a.caseId}</div>
       <div class="case-sim">${a.tema}<span class="p">${a.name}</span></div>
-      <div></div>
+      <div style="font-size:11px; color:var(--ink-faint); font-family:var(--mono);">${a.geradoPor || '—'}</div>
       <div style="font-size:12px">${a.source==='ai' ? 'gerado por IA' : 'modelo local'}</div>
       <div><span class="outcome ${a.score>=80?'win':a.score>=60?'settle':'loss'}">${a.score}%</span></div>
     </div>`).join('');
 
   body.innerHTML = `
     <div class="sim-grid">
-      <div class="sim-card"><div class="n">${analyses.length}</div><div class="l">contestações geradas nesta sessão</div></div>
+      <div class="sim-card"><div class="n">${analysesVisiveis.length}</div><div class="l">contestações geradas${souAdmin?' nesta sessão':' por você nesta sessão'}</div></div>
       <div class="sim-card"><div class="n">${avg}%</div><div class="l">pontuação média do checklist automático</div></div>
-      <div class="sim-card"><div class="n" style="font-size:14px; line-height:1.4">${topFail ? topFail[0] : 'nenhuma falha recorrente'}</div><div class="l">${topFail ? `falhou em ${topFail[1]} de ${analyses.length} gerações` : 'todos os checklists passaram integralmente'}</div></div>
+      <div class="sim-card"><div class="n" style="font-size:14px; line-height:1.4">${topFail ? topFail[0] : 'nenhuma falha recorrente'}</div><div class="l">${topFail ? `falhou em ${topFail[1]} de ${analysesVisiveis.length} gerações` : 'todos os checklists passaram integralmente'}</div></div>
+    </div>
+    <div class="sim-grid">
+      <div class="sim-card"><div class="n">${taxaExito===null ? '—' : taxaExito+'%'}</div><div class="l">taxa de êxito real (improcedente ou acordo), entre ${decididos.length} processo(s) com desfecho registrado</div></div>
+      <div class="sim-card"><div class="n">${decididos.length}</div><div class="l">de ${casesVisiveis.length} processo(s) já com desfecho real registrado</div></div>
     </div>
     <div class="case-list">
-      <div class="case-row head"><div>ID</div><div>Tema / arquivo</div><div></div><div>Origem</div><div>Pontuação</div></div>
+      <div class="case-row head"><div>ID</div><div>Tema / arquivo</div><div>Gerado por</div><div>Origem</div><div>Pontuação</div></div>
       ${rows}
     </div>
-    <div class="callout" style="margin-top:16px"><b>Como isso melhora o sistema.</b> Quando um mesmo campo ou tema aparece repetidamente na lista de falhas, é o sinal de onde investir primeiro: ajustar a extração, ampliar a biblioteca de teses para aquele tema, ou refinar o texto do modelo usado na geração.</div>`;
+    <div class="callout" style="margin-top:16px"><b>Como isso melhora o sistema.</b> Quando um mesmo campo ou tema aparece repetidamente na lista de falhas, é o sinal de onde investir primeiro: ajustar a extração, ampliar a biblioteca de teses para aquele tema, ou refinar o texto do modelo usado na geração. A taxa de êxito real só fica confiável à medida que o desfecho de cada processo (aba Geração) for registrado depois da decisão.</div>`;
 }
 
 renderFila();
