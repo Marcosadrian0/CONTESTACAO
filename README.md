@@ -8,11 +8,13 @@ consignado e refinanciamento (linha Agibank).
 ## Estrutura do repositório
 
 ```
-index.html        a ferramenta inteira (interface, lógica de extração, geração e padrões)
-api/anthropic.js  função serverless da Vercel, chama a API da Anthropic com a chave guardada no servidor
-middleware.js     middleware de borda da Vercel, restringe o acesso a IPs autorizados
-package.json      metadados mínimos do projeto
-.env.example      modelo de variável de ambiente para rodar localmente
+index.html          a ferramenta inteira (interface, lógica de extração, geração e padrões)
+api/anthropic.js    função serverless da Vercel, chama a API da Anthropic com a chave guardada no servidor
+middleware.js       middleware de borda da Vercel, restringe o acesso a IPs autorizados
+tests/              suíte de regressão (Playwright Test), ver seção "Testes automatizados"
+playwright.config.js configuração da suíte de testes
+package.json        metadados do projeto e dependência de desenvolvimento dos testes
+.env.example        modelo de variável de ambiente para rodar localmente
 ```
 
 Não há passo de build. `index.html` é servido como está; `api/anthropic.js` é
@@ -67,6 +69,27 @@ ou VPN corporativa — o próprio endereço autorizado pode mudar sem aviso e tr
 o acesso de quem deveria ter. Serve como uma camada a mais de proteção enquanto o
 uso é restrito a poucas pessoas em fase de teste, não substitui autenticação real.
 
+## Ambiente de homologação separado de produção
+
+Antes de testar com processo real de cliente, evite fazer isso direto na URL de
+produção. A Vercel já cria automaticamente uma "Preview Deployment" com URL própria
+para qualquer branch ou pull request diferente do branch de produção (normalmente
+`main`) — use essa URL de preview para validar mudanças de código antes de
+mesclar para produção.
+
+Para separar de verdade o uso de teste do uso real (não só o código, mas o próprio
+acesso), duas opções, da mais simples à mais completa:
+
+1. Em Project Settings > Environment Variables, defina `ALLOWED_IPS` com escopo
+   diferente por ambiente (a Vercel permite marcar cada variável como Production,
+   Preview ou Development): um `ALLOWED_IPS` mais aberto (IPs de quem testa) no
+   ambiente de Preview, e o `ALLOWED_IPS` restrito de verdade só em Production.
+2. Para isolamento total (recomendado antes de processar o primeiro caso real),
+   criar um segundo projeto na Vercel apontando para o mesmo repositório (ou um
+   branch dedicado `homologacao`), com sua própria `ANTHROPIC_API_KEY` e seu
+   próprio domínio/URL, para que teste nunca compartilhe o mesmo ambiente
+   (nem a mesma chave de API, nem os mesmos usuários) que o uso real.
+
 ## Como rodar localmente
 
 Sem a função serverless (só a interface, extração cai para o modo local):
@@ -78,6 +101,25 @@ npm install -g vercel
 cp .env.example .env.local   # edite .env.local com sua chave real
 vercel dev
 ```
+
+## Testes automatizados
+
+Suíte de regressão com Playwright Test (`tests/app.spec.js`), cobrindo login e troca
+de senha obrigatória, administração de usuários, segregação de acesso por operador,
+geração de minuta com prazo/revisão obrigatória/desfecho, e responsividade básica.
+Roda contra o próprio `index.html`, sem precisar de `ANTHROPIC_API_KEY` (pdf.js e
+mammoth.js são substituídos por um stub para o teste não depender de CDN externo).
+
+```
+npm install
+npx playwright install chromium   # só na primeira vez, baixa o navegador de teste
+npm test
+```
+
+Sempre rodar a suíte antes de subir uma mudança para produção. Ela já pegou bugs
+reais durante o desenvolvimento (troca de usuário deixando dado da sessão anterior
+na tela, e um estouro de layout em telas estreitas causado por um item de grid sem
+`min-width:0`) que passariam despercebidos numa checagem manual rápida.
 
 ## Estado atual (o que já funciona)
 
@@ -126,6 +168,30 @@ vercel dev
 - Desfecho real do processo (pendente, procedente, improcedente, acordo)
   registrável na aba Geração; a aba Análises calcula a taxa de êxito real a
   partir dos desfechos já registrados, além do checklist de completude.
+- Indicador de progresso (dados extraídos → minuta gerada → revisão confirmada →
+  arquivo baixado) na aba Geração, refletindo o estado real de cada processo.
+- Aviso visual claro nas abas "Casos similares" e "Portão de qualidade" de que são
+  telas de protótipo com dados ilustrativos fixos, não conectadas aos processos
+  reais da sessão.
+- Alerta por campo quando a extração (IA ou local) não conseguiu localizar o dado,
+  em vez de só mostrar o texto "não localizado" sem destaque.
+- Contador de uso da API de IA na aba Análises (chamadas tentadas, quantas caíram
+  para o modo local, tokens de entrada/saída somados), sem estimar custo em R$/US$
+  no código (o preço por token muda; ver anthropic.com/pricing para calcular).
+- Botão de exportar/imprimir um relatório da aba Análises.
+- Aviso sobre envio de trechos da petição à API da Anthropic para extração/geração
+  por IA, exibido perto do upload (ver seção de privacidade abaixo).
+- Suíte de testes automatizados (Playwright Test) cobrindo os fluxos acima.
+
+## Privacidade e dados enviados à IA
+
+A leitura do arquivo (PDF/DOCX/TXT) acontece inteiramente no navegador. Para a
+extração de campos e a adaptação da seção "Regularidade dos descontos", trechos de
+texto da petição (até 7.000 caracteres para extração, até 3.000 para a adaptação de
+texto) são enviados à API da Anthropic através de `api/anthropic.js`. Isso não é uma
+análise de conformidade LGPD formal, apenas uma transparência operacional: revisar
+com o time jurídico/DPO antes de processar petição com dado sensível de consumidor
+em volume, e avaliar se algum campo precisa ser mascarado antes do envio.
 
 ## Limitação atual mais importante
 
@@ -164,3 +230,10 @@ dessa senha assim que o login é feito).
    ficar mais próximo do prazo real (hoje só desconta sábado e domingo).
 6. Log de auditoria persistente (hoje o histórico de quem gerou/confirmou cada
    minuta vive só em memória, como o restante do estado da sessão).
+7. Revisão de conformidade LGPD formal com o time jurídico/DPO (hoje só existe um
+   aviso operacional na interface, ver seção "Privacidade e dados enviados à IA").
+8. Segundo projeto Vercel dedicado a homologação, isolado do de produção (hoje só
+   existe a recomendação de uso das Preview Deployments da própria Vercel, ver
+   seção "Ambiente de homologação separado de produção").
+9. Rodar a suíte de testes automaticamente a cada push (CI, ex.: GitHub Actions),
+   hoje ela só roda sob comando manual (`npm test`).

@@ -70,7 +70,10 @@ export default async function handler(req, res) {
 
     const data = await resp.json();
     const bloco = (data.content || []).find(c => c.type === 'text');
-    res.status(200).json({ text: bloco ? bloco.text : '' });
+    // data.usage vem direto da resposta da Anthropic (tokens de entrada/saída da própria
+    // chamada). Repassado ao navegador só para alimentar o contador de uso de IA da
+    // interface, não é usado para nenhuma outra finalidade aqui no servidor.
+    res.status(200).json({ text: bloco ? bloco.text : '', usage: data.usage || null });
 
   } catch (err) {
     res.status(500).json({ error: 'Falha ao chamar a API da Anthropic.', detail: String(err) });
