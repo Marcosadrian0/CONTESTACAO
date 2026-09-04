@@ -558,7 +558,7 @@ html[data-theme="dark"] .auth-screen{
     <div class="view-head">
       <div class="kicker">Identidade visual do documento gerado</div>
       <h1>Cada cliente com o padrão que pediu</h1>
-      <p>Cadastre logo e margens por cliente. Na hora de gerar ou baixar a contestação, escolha o padrão a aplicar: alguns clientes querem logo e margem específica, outros só a logo, outros nenhum dos dois.</p>
+      <p>Cadastre logo e margens por cliente. Na hora de gerar ou baixar a contestação, escolha o padrão a aplicar: alguns clientes querem logo e margem específica, outros só a logo, outros nenhum dos dois. O formulário já mostra, ao lado, uma prévia em escala real do modelo completo de documento, mesmo antes de qualquer processo real ser carregado.</p>
     </div>
     <div id="padroesBody"></div>
   </section>
@@ -922,6 +922,23 @@ function montarSecoes(c){
   return secoes;
 }
 
+// Monta uma minuta de exemplo (sem processo real carregado), usada só para pré-visualização
+// do modelo de documento na aba Padrões por cliente. Mostra as preliminares e a tutela juntas
+// para exibir a estrutura completa; os únicos trechos que variam por processo real (resumo e
+// regularidade dos descontos) aparecem com texto de espaço reservado, claramente identificado.
+function secoesExemploPreview(){
+  const temaExemplo = 'Empréstimo consignado';
+  return montarSecoes({
+    fields: {
+      tema: temaExemplo,
+      resumo: '[o resumo da petição inicial real aparece aqui, extraído automaticamente na aba Fila]',
+      pedeTutela: true,
+      regularidadeTexto: TEMA_PRODUTOS[temaExemplo].regularidade,
+    },
+    preliminaresExtras: { residencia: true, ilegitimidade: true, prescricao: true, interesseAgir: true },
+  });
+}
+
 function checkQuality(f, secoes){
   const notLocated = v => !v || /não localizado/i.test(v);
   const titulos = secoes.map(s => s.t.trim().toLowerCase());
@@ -1038,7 +1055,10 @@ function renderPadroes(){
 
       <button class="btn-generate" id="saveClientBtn" style="width:100%; justify-content:center;">Salvar padrão</button>
     </div>
-    <div>${listaHtml}</div>
+    <div>
+      <div id="docPreviewPanel" style="margin-bottom:22px;"></div>
+      ${listaHtml}
+    </div>
   </div>`;
 
   let logoDataUrlTemp = null;
@@ -1054,8 +1074,40 @@ function renderPadroes(){
       headerBannerDataUrl: bannerDataUrlTemp,
     };
   }
+  function margensAtuais(){
+    return document.getElementById('clientMargensPersonalizadas').checked ? {
+      top: parseFloat(document.getElementById('mgTop').value) || MARGEM_PADRAO.top,
+      right: parseFloat(document.getElementById('mgRight').value) || MARGEM_PADRAO.right,
+      bottom: parseFloat(document.getElementById('mgBottom').value) || MARGEM_PADRAO.bottom,
+      left: parseFloat(document.getElementById('mgLeft').value) || MARGEM_PADRAO.left,
+    } : MARGEM_PADRAO;
+  }
+  // Prévia em escala real (A4) com o padrão em edição aplicado a uma minuta de exemplo.
+  // Deixa visível, para o cliente, como o documento final fica mesmo antes de existir
+  // qualquer processo real carregado no sistema.
+  function renderDocPreview(){
+    const cfg = estadoAtual();
+    const margens = margensAtuais();
+    const cabecalhoHtml = previewCabecalho(cfg, false);
+    const cabecalhoSangrado = `<div style="margin:-${margens.top}cm -${margens.right}cm 16px -${margens.left}cm;">${cabecalhoHtml}</div>`;
+    const secoesHtml = secoesExemploPreview().map((s, i) => `
+      <h5>${i+1}. ${s.t}</h5>
+      ${s.b.split('\n\n').map(p=>`<p>${p}</p>`).join('')}
+    `).join('');
+    document.getElementById('docPreviewPanel').innerHTML = `
+      <div class="preview-label">prévia em escala real do modelo de documento (folha A4, 21 cm), com conteúdo de exemplo</div>
+      <div class="page-preview-wrap">
+        <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm;">
+          ${cabecalhoSangrado}
+          <div class="doc-court">Excelentíssimo senhor doutor juiz de direito</div>
+          ${secoesHtml}
+        </div>
+      </div>
+      <div class="callout" style="margin-top:12px"><b>Sobre esta prévia.</b> O cabeçalho e as margens são exatamente os configurados ao lado. O texto das seções é de exemplo: as seções fixas já são as mesmas do documento final, só o resumo do caso e a seção "Regularidade dos descontos impugnados" mudam de acordo com a petição real de cada processo.</div>`;
+  }
   function atualizarPreview(){
     document.getElementById('headerPreviewWrap').innerHTML = previewCabecalho(estadoAtual());
+    renderDocPreview();
   }
   function alternarCampos(){
     const modo = document.getElementById('headerMode').value;
@@ -1068,6 +1120,10 @@ function renderPadroes(){
   document.getElementById('headerLogoPos').addEventListener('change', atualizarPreview);
   document.getElementById('headerCor').addEventListener('input', atualizarPreview);
   document.getElementById('headerPontinhos').addEventListener('change', atualizarPreview);
+  document.getElementById('clientMargensPersonalizadas').addEventListener('change', atualizarPreview);
+  ['mgTop','mgRight','mgBottom','mgLeft'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', atualizarPreview);
+  });
 
   document.getElementById('clientLogoInput').addEventListener('change', e=>{
     const file = e.target.files[0];
