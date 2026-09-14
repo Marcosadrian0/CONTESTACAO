@@ -11,5 +11,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0"
   }
 }
