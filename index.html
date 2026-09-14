@@ -642,46 +642,59 @@ tabs.forEach(t=>t.addEventListener('click', ()=>{
 }));
 
 /* ---------------- autenticação ---------------- */
-// Protótipo sem backend: usuários ficam em localStorage (sobrevivem ao fechar a aba,
-// diferente do restante do estado do sistema). A senha nunca é gravada em texto puro,
-// mas o hash abaixo é só ofuscação, não criptografia real — não serve para produção.
-const USERS_KEY = 'mc_users_v1';
-const SESSION_KEY = 'mc_session_v1';
-
-function hashSenha(str){
-  let h = 5381;
-  for(let i=0;i<str.length;i++){ h = ((h*33) ^ str.charCodeAt(i)) >>> 0; }
-  return 'h' + h.toString(16);
-}
-
-function loadUsers(){
-  try{ return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }catch(e){ return []; }
-}
-function saveUsers(users){ localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
-
-function seedUsuarios(){
-  let users = loadUsers();
-  if(users.length === 0){
-    users = [{
-      id: 1,
-      usuario: 'marcos.oliveira',
-      senhaHash: hashSenha('1234'),
-      papel: 'admin',
-      trocarSenha: true,
-      criadoEm: new Date().toISOString(),
-    }];
-    saveUsers(users);
-  }
-  return users;
-}
+// Usuários ficam em um banco compartilhado (Redis via api/users.js), não mais no
+// localStorage do navegador: login, senha e papel agora são os mesmos em qualquer
+// máquina. A senha é verificada no servidor (scrypt com salt); o navegador nunca vê
+// hash de senha, só um token de sessão assinado que prova quem é o usuário logado.
+const SESSION_KEY = 'mc_session_v2';
+const API_USERS = '/api/users';
 
 let currentUser = null;
+let authToken = null;
 
-function getSession(){
+function persistirSessao(token, usuario){
+  authToken = token;
+  currentUser = usuario;
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token, usuario }));
+}
+function limparSessao(){
+  authToken = null;
+  currentUser = null;
+  sessionStorage.removeItem(SESSION_KEY);
+}
+function restaurarSessao(){
   try{ return JSON.parse(sessionStorage.getItem(SESSION_KEY)); }catch(e){ return null; }
 }
-function setSession(userId){ sessionStorage.setItem(SESSION_KEY, JSON.stringify({userId})); }
-function clearSession(){ sessionStorage.removeItem(SESSION_KEY); }
+
+// Chama a API de usuários. Em erro, lança uma Error com .status e .message (a mensagem
+// já em português, vinda do servidor quando existir). Em 401 fora do login, a sessão
+// expirou ou foi invalidada: desloga e devolve para a tela de login.
+async function apiUsers(body){
+  const resp = await fetch(API_USERS, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', ...(authToken ? {'Authorization':'Bearer '+authToken} : {}) },
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json().catch(()=>({}));
+  if(!resp.ok){
+    if(resp.status === 401 && body.action !== 'login'){ limparSessao(); showLogin(); }
+    const err = new Error(data.error || 'Não foi possível completar a operação.');
+    err.status = resp.status;
+    throw err;
+  }
+  return data;
+}
+async function apiUsersList(){
+  const resp = await fetch(API_USERS, { headers: { 'Authorization':'Bearer '+authToken } });
+  const data = await resp.json().catch(()=>({}));
+  if(!resp.ok){
+    if(resp.status === 401){ limparSessao(); showLogin(); }
+    const err = new Error(data.error || 'Não foi possível carregar os usuários.');
+    err.status = resp.status;
+    throw err;
+  }
+  return data.usuarios;
+}
 
 function showLogin(){
   document.getElementById('loginScreen').style.display = 'flex';
@@ -715,42 +728,49 @@ function showApp(){
   renderFila();
 }
 
-function tentarLogin(){
-  const usuario = document.getElementById('loginUsuario').value.trim().toLowerCase();
+async function tentarLogin(){
+  const usuario = document.getElementById('loginUsuario').value.trim();
   const senha = document.getElementById('loginSenha').value;
   const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
   if(!usuario || !senha){ errEl.textContent = 'Informe usuário e senha.'; return; }
-  const users = loadUsers();
-  const u = users.find(x => x.usuario.toLowerCase() === usuario);
-  if(!u || u.senhaHash !== hashSenha(senha)){
-    errEl.textContent = 'Usuário ou senha inválidos.';
-    return;
+  errEl.textContent = '';
+  btn.disabled = true;
+  try{
+    const data = await apiUsers({ action:'login', usuario, senha });
+    persistirSessao(data.token, data.usuario);
+    if(data.usuario.trocarSenha){ showChangePw(); } else { showApp(); }
+  }catch(e){
+    errEl.textContent = e.message;
+  }finally{
+    btn.disabled = false;
   }
-  currentUser = u;
-  setSession(u.id);
-  if(u.trocarSenha){ showChangePw(); }
-  else { showApp(); }
 }
 
-function confirmarTrocaSenha(){
+async function confirmarTrocaSenha(){
   const s1 = document.getElementById('novaSenha1').value;
   const s2 = document.getElementById('novaSenha2').value;
   const errEl = document.getElementById('changePwError');
   if(s1.length < 4){ errEl.textContent = 'A nova senha precisa ter ao menos 4 caracteres.'; return; }
   if(s1 !== s2){ errEl.textContent = 'As senhas não coincidem.'; return; }
-  const users = loadUsers();
-  const u = users.find(x => x.id === currentUser.id);
-  if(!u) return;
-  u.senhaHash = hashSenha(s1);
-  u.trocarSenha = false;
-  saveUsers(users);
-  currentUser = u;
-  showApp();
+  const btn = document.getElementById('changePwBtn');
+  btn.disabled = true;
+  try{
+    const data = await apiUsers({ action:'change-password', novaSenha: s1 });
+    persistirSessao(data.token, data.usuario);
+    showApp();
+  }catch(e){
+    errEl.textContent = e.message;
+  }finally{
+    btn.disabled = false;
+  }
 }
 
 function logout(){
-  clearSession();
-  currentUser = null;
+  // Sem servidor de sessão com estado (o token é autocontido), deslogar é uma ação só
+  // do navegador: o token continua tecnicamente válido até expirar (12h), aceitável
+  // para o volume de uso desta ferramenta.
+  limparSessao();
   showLogin();
 }
 
@@ -762,27 +782,33 @@ document.getElementById('novaSenha2').addEventListener('keydown', e=>{ if(e.key=
 document.getElementById('logoutBtn').addEventListener('click', logout);
 
 function initAuth(){
-  seedUsuarios();
-  const session = getSession();
-  if(session){
-    const users = loadUsers();
-    const u = users.find(x => x.id === session.userId);
-    if(u){
-      currentUser = u;
-      if(u.trocarSenha){ showChangePw(); return; }
-      showApp();
-      return;
-    }
+  const sessao = restaurarSessao();
+  if(sessao && sessao.token && sessao.usuario){
+    authToken = sessao.token;
+    currentUser = sessao.usuario;
+    if(currentUser.trocarSenha){ showChangePw(); return; }
+    showApp();
+    return;
   }
   showLogin();
 }
 
 /* ---------------- admin: gestão de usuários ---------------- */
-function renderAdmin(){
+async function renderAdmin(){
   if(!currentUser || currentUser.papel !== 'admin') return;
   const body = document.getElementById('adminBody');
-  const users = loadUsers();
-  const rows = users.map(u => `
+  body.innerHTML = `<div class="empty-state"><b>Carregando usuários…</b></div>`;
+  try{
+    const usuarios = await apiUsersList();
+    renderAdminBody(usuarios);
+  }catch(e){
+    body.innerHTML = `<div class="empty-state"><b>Não foi possível carregar os usuários</b><span>${e.message}</span></div>`;
+  }
+}
+
+function renderAdminBody(usuarios){
+  const body = document.getElementById('adminBody');
+  const rows = usuarios.map(u => `
     <div class="user-row">
       <div class="user-name">${u.usuario}${u.id===currentUser.id ? ' <span class="m">(você)</span>' : ''}</div>
       <div><span class="role-pill ${u.papel==='admin'?'':'op'}">${u.papel==='admin'?'Admin':'Operador'}</span></div>
@@ -815,55 +841,66 @@ function renderAdmin(){
     </div>
   </div>`;
 
-  document.getElementById('addUserBtn').addEventListener('click', ()=>{
+  document.getElementById('addUserBtn').addEventListener('click', async ()=>{
     const usuario = document.getElementById('novoUsuario').value.trim();
     const senha = document.getElementById('novaSenhaUsuario').value;
     const papel = document.getElementById('novoPapel').value;
     const errEl = document.getElementById('novoUsuarioError');
     if(!usuario || !senha){ errEl.textContent = 'Informe usuário e senha temporária.'; return; }
-    const atuais = loadUsers();
-    if(atuais.some(u=>u.usuario.toLowerCase()===usuario.toLowerCase())){ errEl.textContent = 'Já existe um usuário com esse login.'; return; }
-    const novoId = atuais.reduce((max,u)=>Math.max(max,u.id),0) + 1;
-    atuais.push({ id: novoId, usuario, senhaHash: hashSenha(senha), papel, trocarSenha: true, criadoEm: new Date().toISOString() });
-    saveUsers(atuais);
-    renderAdmin();
+    errEl.textContent = '';
+    try{
+      const data = await apiUsers({ action:'create', usuario, senha, papel });
+      renderAdminBody(data.usuarios);
+    }catch(e){
+      errEl.textContent = e.message;
+    }
   });
 
   body.querySelectorAll('[data-reset]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const atuais = loadUsers();
-      const u = atuais.find(x=>x.id===parseInt(btn.dataset.reset));
+    btn.addEventListener('click', async ()=>{
+      const u = usuarios.find(x=>x.id===parseInt(btn.dataset.reset));
       if(!u) return;
       const nova = prompt(`Nova senha temporária para ${u.usuario}:`, '1234');
       if(!nova) return;
-      u.senhaHash = hashSenha(nova);
-      u.trocarSenha = true;
-      saveUsers(atuais);
-      renderAdmin();
+      try{
+        const data = await apiUsers({ action:'reset-password', id: u.id, novaSenha: nova });
+        renderAdminBody(data.usuarios);
+      }catch(e){
+        alert(e.message);
+      }
     });
   });
   body.querySelectorAll('[data-role]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const atuais = loadUsers();
-      const u = atuais.find(x=>x.id===parseInt(btn.dataset.role));
+    btn.addEventListener('click', async ()=>{
+      const id = parseInt(btn.dataset.role);
+      const u = usuarios.find(x=>x.id===id);
       if(!u) return;
-      if(u.papel==='admin' && atuais.filter(x=>x.papel==='admin').length<=1){ alert('Não é possível remover o último administrador.'); return; }
-      u.papel = u.papel==='admin' ? 'operador' : 'admin';
-      saveUsers(atuais);
-      if(u.id===currentUser.id){ currentUser = u; showApp(); }
-      renderAdmin();
+      const novoPapel = u.papel==='admin' ? 'operador' : 'admin';
+      try{
+        const data = await apiUsers({ action:'set-role', id, papel: novoPapel });
+        if(id === currentUser.id){
+          const atualizado = data.usuarios.find(x=>x.id===id);
+          persistirSessao(authToken, atualizado);
+          showApp();
+          return;
+        }
+        renderAdminBody(data.usuarios);
+      }catch(e){
+        alert(e.message);
+      }
     });
   });
   body.querySelectorAll('[data-del]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', async ()=>{
       const id = parseInt(btn.dataset.del);
       if(id === currentUser.id){ alert('Você não pode remover o próprio usuário logado.'); return; }
-      const atuais = loadUsers();
-      const alvo = atuais.find(x=>x.id===id);
-      if(alvo && alvo.papel==='admin' && atuais.filter(x=>x.papel==='admin').length<=1){ alert('Não é possível remover o último administrador.'); return; }
       if(!confirm('Remover este usuário?')) return;
-      saveUsers(atuais.filter(x=>x.id!==id));
-      renderAdmin();
+      try{
+        const data = await apiUsers({ action:'delete', id });
+        renderAdminBody(data.usuarios);
+      }catch(e){
+        alert(e.message);
+      }
     });
   });
 }

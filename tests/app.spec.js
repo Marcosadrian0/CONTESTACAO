@@ -26,6 +26,84 @@ async function stubarBibliotecas(page) {
   });
 }
 
+// api/users.js precisa de um Redis real (ver tests/users-crypto.spec.js para o teste de
+// unidade do hash de senha e do token, que são a parte que realmente importa checar contra
+// código de verdade). Aqui, para os testes de fluxo (login, admin, geração), simulamos a
+// mesma API — mesmo formato de request/response — com um "banco" em memória por teste.
+async function instalarMockApiUsuarios(page) {
+  let usuarios = [
+    { id: 1, usuario: 'marcos.oliveira', senha: '1234', papel: 'admin', trocarSenha: true },
+  ];
+  let proximoId = 2;
+
+  const tokenPara = u => `TESTE-TOKEN-${u.id}`;
+  const usuarioDoToken = auth => {
+    const m = /^Bearer TESTE-TOKEN-(\d+)$/.exec(auth || '');
+    return m ? usuarios.find(u => u.id === parseInt(m[1])) || null : null;
+  };
+  const publico = u => ({ id: u.id, usuario: u.usuario, papel: u.papel, trocarSenha: u.trocarSenha });
+
+  await page.route('**/api/users*', async route => {
+    const req = route.request();
+    const auth = req.headers()['authorization'];
+
+    if (req.method() === 'GET') {
+      const sessao = usuarioDoToken(auth);
+      if (!sessao || sessao.papel !== 'admin') { await route.fulfill({ status: 401, json: { error: 'Sessão inválida ou sem permissão de administrador.' } }); return; }
+      await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico) } });
+      return;
+    }
+
+    const body = req.postDataJSON() || {};
+
+    if (body.action === 'login') {
+      const u = usuarios.find(x => x.usuario.toLowerCase() === (body.usuario || '').toLowerCase());
+      if (!u || u.senha !== body.senha) { await route.fulfill({ status: 401, json: { error: 'Usuário ou senha inválidos.' } }); return; }
+      await route.fulfill({ status: 200, json: { token: tokenPara(u), usuario: publico(u) } });
+      return;
+    }
+
+    const sessao = usuarioDoToken(auth);
+    if (!sessao) { await route.fulfill({ status: 401, json: { error: 'Sessão inválida ou expirada, faça login novamente.' } }); return; }
+
+    if (body.action === 'change-password') {
+      sessao.senha = body.novaSenha;
+      sessao.trocarSenha = false;
+      await route.fulfill({ status: 200, json: { token: tokenPara(sessao), usuario: publico(sessao) } });
+      return;
+    }
+
+    if (sessao.papel !== 'admin') { await route.fulfill({ status: 403, json: { error: 'Ação restrita a administradores.' } }); return; }
+
+    if (body.action === 'create') {
+      if (usuarios.some(u => u.usuario.toLowerCase() === body.usuario.toLowerCase())) { await route.fulfill({ status: 409, json: { error: 'Já existe um usuário com esse login.' } }); return; }
+      usuarios.push({ id: proximoId++, usuario: body.usuario, senha: body.senha, papel: body.papel === 'admin' ? 'admin' : 'operador', trocarSenha: true });
+      await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico) } });
+      return;
+    }
+    if (body.action === 'reset-password') {
+      const u = usuarios.find(x => x.id === body.id);
+      if (u) { u.senha = body.novaSenha || '1234'; u.trocarSenha = true; }
+      await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico) } });
+      return;
+    }
+    if (body.action === 'set-role') {
+      const u = usuarios.find(x => x.id === body.id);
+      const admins = usuarios.filter(x => x.papel === 'admin');
+      if (u && u.papel === 'admin' && body.papel !== 'admin' && admins.length <= 1) { await route.fulfill({ status: 400, json: { error: 'Não é possível remover o último administrador.' } }); return; }
+      if (u) u.papel = body.papel === 'admin' ? 'admin' : 'operador';
+      await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico) } });
+      return;
+    }
+    if (body.action === 'delete') {
+      usuarios = usuarios.filter(x => x.id !== body.id);
+      await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico) } });
+      return;
+    }
+    await route.fulfill({ status: 400, json: { error: 'ação desconhecida no mock' } });
+  });
+}
+
 async function login(page, usuario, senha) {
   await page.fill('#loginUsuario', usuario);
   await page.fill('#loginSenha', senha);
@@ -51,6 +129,7 @@ test.beforeEach(async ({ page }) => {
   // sem acesso a esses domínios específicos.
   await page.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com/, route => route.abort());
   await stubarBibliotecas(page);
+  await instalarMockApiUsuarios(page);
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
 });
 

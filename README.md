@@ -10,16 +10,18 @@ consignado e refinanciamento (linha Agibank).
 ```
 index.html          a ferramenta inteira (interface, lógica de extração, geração e padrões)
 api/anthropic.js    função serverless da Vercel, chama a API da Anthropic com a chave guardada no servidor
+api/users.js        função serverless da Vercel, login e administração de usuários (banco Redis)
+api/package.json    marca a pasta api/ como módulos ES (api/users.js usa import/export)
 middleware.js       middleware de borda da Vercel, restringe o acesso a IPs autorizados
 tests/              suíte de regressão (Playwright Test), ver seção "Testes automatizados"
 playwright.config.js configuração da suíte de testes
-package.json        metadados do projeto e dependência de desenvolvimento dos testes
+package.json        metadados do projeto e dependências (Upstash Redis, Playwright Test)
 .env.example        modelo de variável de ambiente para rodar localmente
 ```
 
-Não há passo de build. `index.html` é servido como está; `api/anthropic.js` é
-detectado automaticamente pela Vercel como uma função serverless; `middleware.js`
-é detectado automaticamente como middleware de borda.
+Não há passo de build. `index.html` é servido como está; `api/anthropic.js` e
+`api/users.js` são detectados automaticamente pela Vercel como funções serverless;
+`middleware.js` é detectado automaticamente como middleware de borda.
 
 ## Por que existe uma função serverless
 
@@ -41,14 +43,45 @@ funcionar.
 2. Em vercel.com, "Add New Project" e importe o repositório.
 3. A Vercel detecta sozinha o `index.html`, a pasta `api/` e o `middleware.js`,
    nenhuma configuração de build é necessária.
-4. Antes do primeiro deploy (ou depois, redeployando), vá em
-   Project Settings > Environment Variables e adicione:
+4. **Antes do primeiro deploy, crie o banco de usuários** — ver seção "Banco de
+   usuários (login/admin)" logo abaixo. Sem isso, ninguém consegue fazer login,
+   nem o admin padrão.
+5. Em Project Settings > Environment Variables, adicione também:
    - `ANTHROPIC_API_KEY` = a chave de API da Anthropic.
    - `ALLOWED_IPS` (opcional) = lista de IPs autorizados a acessar o site, separados
      por vírgula. Sem essa variável, o sistema usa os dois IPs padrão configurados em
      `middleware.js` (ver seção "Restrição de acesso por IP" abaixo).
-5. Deploy. A URL pública já sobe com a extração e a geração por IA funcionando, e o
-   acesso já restrito aos IPs autorizados.
+6. Deploy. A URL pública já sobe com login, extração e geração por IA funcionando,
+   e o acesso já restrito aos IPs autorizados.
+
+## Banco de usuários (login/admin)
+
+Login, senha e papel (admin/operador) ficam em um banco Redis compartilhado — assim
+funcionam igual em qualquer máquina, não só na de quem cadastrou. Passo a passo para
+criar:
+
+1. No painel do projeto na Vercel, aba **Storage** > **Create Database**.
+2. Escolha um banco **Redis** (o marketplace já teve integrações com os nomes "KV" e
+   "Upstash" — qualquer uma serve, o código aceita os dois formatos de variável).
+3. Confirme a criação e **conecte o banco a este projeto** quando a Vercel perguntar
+   (isso já preenche `KV_REST_API_URL`/`KV_REST_API_TOKEN` ou
+   `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` nas variáveis de ambiente do
+   projeto automaticamente — não precisa copiar nada manualmente).
+4. Em Project Settings > Environment Variables, adicione também `SESSION_SECRET`
+   com uma string aleatória longa (ex.: gerada com `openssl rand -hex 32` no
+   terminal, ou qualquer gerador de senha forte). Essa string assina o token de
+   login — sem ela, ninguém consegue entrar.
+5. Faça (ou refaça) o deploy depois de configurar essas variáveis.
+
+No primeiro acesso ao sistema depois disso, o banco é populado automaticamente com
+o usuário administrador padrão: `marcos.oliveira`, senha temporária `1234` (o
+sistema exige a troca dessa senha assim que o login é feito). A partir daí, esse
+mesmo usuário — e qualquer outro cadastrado na aba Admin — funciona identicamente
+em qualquer navegador ou máquina, porque agora fica no banco, não mais no
+navegador de quem cadastrou.
+
+Se essas variáveis não estiverem configuradas, `api/users.js` responde com um erro
+claro ("Banco de usuários não configurado...") em vez de falhar silenciosamente.
 
 ## Restrição de acesso por IP
 
@@ -104,11 +137,18 @@ vercel dev
 
 ## Testes automatizados
 
-Suíte de regressão com Playwright Test (`tests/app.spec.js`), cobrindo login e troca
-de senha obrigatória, administração de usuários, segregação de acesso por operador,
-geração de minuta com prazo/revisão obrigatória/desfecho, e responsividade básica.
-Roda contra o próprio `index.html`, sem precisar de `ANTHROPIC_API_KEY` (pdf.js e
-mammoth.js são substituídos por um stub para o teste não depender de CDN externo).
+Suíte de regressão com Playwright Test:
+
+- `tests/app.spec.js`: fluxos de login e troca de senha obrigatória, administração
+  de usuários, segregação de acesso por operador, geração de minuta com
+  prazo/revisão obrigatória/desfecho, e responsividade básica. Roda contra o
+  próprio `index.html` sem precisar de banco real nem `ANTHROPIC_API_KEY` (pdf.js e
+  mammoth.js viram um stub; `/api/users` é simulado em memória, com o mesmo formato
+  de request/resposta da função de verdade).
+- `tests/users-crypto.spec.js`: teste de unidade das partes de segurança de
+  `api/users.js` de verdade (hash de senha com scrypt, token de sessão assinado por
+  HMAC, rejeição de token adulterado/expirado) — sem precisar de Redis para isso,
+  são funções puras.
 
 ```
 npm install
@@ -147,7 +187,11 @@ na tela, e um estouro de layout em telas estreitas causado por um item de grid s
 - Pré-visualização em escala real (folha A4, 21 cm) da minuta com o cabeçalho e a
   margem do cliente selecionado, antes do download.
 - Login obrigatório antes de usar o sistema, com troca de senha forçada no
-  primeiro acesso quando o usuário ainda está com senha temporária.
+  primeiro acesso quando o usuário ainda está com senha temporária. Usuários,
+  senha (hash com scrypt) e papel ficam num banco Redis compartilhado (ver seção
+  "Banco de usuários"), não mais no navegador — funciona igual em qualquer máquina.
+  A verificação de senha e a checagem de papel de admin acontecem no servidor,
+  com um token de sessão assinado por HMAC (expira em 12h).
 - Aba Admin (visível só para usuários com papel de administrador) para cadastrar
   novos usuários, redefinir senha e alternar papel entre operador e admin.
 - Restrição de acesso por IP na borda da Vercel (`middleware.js`), aplicada ao
@@ -195,45 +239,42 @@ em volume, e avaliar se algum campo precisa ser mascarado antes do envio.
 
 ## Limitação atual mais importante
 
-Todo o estado (processos carregados, contestações geradas, análises, clientes
-cadastrados) vive apenas na memória do navegador durante a sessão. Fechar a aba
-apaga tudo. Não há banco de dados.
+Usuários (login/admin) já ficam num banco de verdade (ver seção acima). O resto do
+estado — processos carregados, contestações geradas, análises, clientes cadastrados
+— continua vivendo só na memória do navegador durante a sessão: fechar a aba apaga
+tudo, e isso não é compartilhado entre máquinas nem persiste entre sessões. É uma
+limitação aceita por ora (decisão explícita: mover isso para banco fica para depois
+de validar as regras de negócio com uso real).
 
-Os usuários são a única coisa que sobrevive ao fechar a aba: ficam gravados no
-`localStorage` do navegador. Isso é suficiente para testar o fluxo de login,
-mas **não é autenticação de produção**: a senha guardada usa apenas um hash
-simples de ofuscação (não criptográfico), não há proteção contra força bruta,
-e o cadastro de usuários não é sincronizado entre navegadores ou dispositivos
-diferentes. Antes de usar com petições reais de clientes, mover a autenticação
-para um backend de verdade é o próximo passo obrigatório.
-
-Usuário administrador padrão, criado automaticamente no primeiro uso de cada
-navegador: `marcos.oliveira`, senha temporária `1234` (o sistema exige a troca
-dessa senha assim que o login é feito).
+Mesmo com o banco de usuários, isto ainda não é autenticação de nível bancário: não
+há limite de tentativas de login (proteção contra força bruta), nem rotação/revogação
+de token antes da expiração (12h). Para o volume de uso desta ferramenta (uso interno,
+poucas dezenas de contas) é um risco aceitável; reavaliar se o uso crescer.
 
 ## Próximos passos sugeridos
 
-1. Persistência real: mover `cases`, `analyses`, `clientes` e `usuários` para um
-   banco (ex.: Postgres na própria Vercel, ou Supabase) em vez de variáveis em
-   memória e `localStorage`.
-2. Autenticação de produção: hash de senha criptográfico e verificação no
-   servidor (hoje a checagem de senha roda inteiramente no navegador), já que
-   isso vai lidar com petições reais de clientes.
-3. Ampliar a biblioteca de teses (`TEMA_PRODUTOS` em `index.html`) à medida que
+1. Persistência real de `cases`, `analyses` e `clientes` (ex.: no mesmo Redis dos
+   usuários, ou um banco relacional como Postgres/Supabase), em vez de variáveis
+   em memória — planejado para depois de validar as regras de negócio com uso
+   real (ver "Limitação atual mais importante").
+2. Ampliar a biblioteca de teses (`TEMA_PRODUTOS` em `index.html`) à medida que
    mais contestações reais forem validadas, seguindo o mesmo processo usado para
    os seis temas atuais: ler peças reais, extrair o padrão comum, e só então
    generalizar. Não dá para simplesmente inventar tese nova sem validar contra
    peça real, sob risco de gerar defesa juridicamente incorreta.
-4. Gerar o arquivo final como `.docx` nativo (biblioteca de geração no navegador
+3. Gerar o arquivo final como `.docx` nativo (biblioteca de geração no navegador
    ou no backend) em vez do truque de HTML compatível com Word usado hoje.
-5. Calendário de feriados forenses por comarca/tribunal para o cálculo de prazo
+4. Calendário de feriados forenses por comarca/tribunal para o cálculo de prazo
    ficar mais próximo do prazo real (hoje só desconta sábado e domingo).
-6. Log de auditoria persistente (hoje o histórico de quem gerou/confirmou cada
+5. Log de auditoria persistente (hoje o histórico de quem gerou/confirmou cada
    minuta vive só em memória, como o restante do estado da sessão).
-7. Revisão de conformidade LGPD formal com o time jurídico/DPO (hoje só existe um
+6. Revisão de conformidade LGPD formal com o time jurídico/DPO (hoje só existe um
    aviso operacional na interface, ver seção "Privacidade e dados enviados à IA").
-8. Segundo projeto Vercel dedicado a homologação, isolado do de produção (hoje só
+7. Segundo projeto Vercel dedicado a homologação, isolado do de produção (hoje só
    existe a recomendação de uso das Preview Deployments da própria Vercel, ver
    seção "Ambiente de homologação separado de produção").
-9. Rodar a suíte de testes automaticamente a cada push (CI, ex.: GitHub Actions),
+8. Rodar a suíte de testes automaticamente a cada push (CI, ex.: GitHub Actions),
    hoje ela só roda sob comando manual (`npm test`).
+9. Limite de tentativas de login (proteção contra força bruta) e um jeito de
+   revogar um token de sessão antes da expiração (hoje o token é autocontido e
+   válido até expirar, sem lista de revogação).
