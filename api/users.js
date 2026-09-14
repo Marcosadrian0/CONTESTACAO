@@ -1,11 +1,11 @@
-// Função serverless da Vercel. Guarda os usuários do sistema em um banco Redis
-// compartilhado (Upstash, via integração de "Redis"/"KV" do Vercel Marketplace), em vez
-// de localStorage no navegador — assim login e administração de usuários funcionam
-// igual em qualquer máquina, não só na de quem cadastrou.
+// Função serverless da Vercel. Guarda os usuários do sistema num banco Postgres
+// compartilhado (Neon, via Vercel Marketplace), em vez de localStorage no navegador —
+// assim login e administração de usuários funcionam igual em qualquer máquina, não só
+// na de quem cadastrou.
 //
-// Configuração necessária no painel da Vercel (Project Settings > Environment Variables):
-//   KV_REST_API_URL / KV_REST_API_TOKEN  (nome usado por integrações de Redis mais antigas)
-//   ou UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (nome do Upstash Marketplace atual)
+// Configuração necessária no painel da Vercel (Project Settings > Environment Variables,
+// já preenchidas automaticamente ao instalar a integração Neon e conectar ao projeto):
+//   DATABASE_URL ou POSTGRES_URL  = string de conexão do Postgres
 //   SESSION_SECRET  = uma string aleatória longa, só para assinar o token de sessão
 //
 // Senha nunca é guardada em texto puro: usa scrypt (nativo do Node) com salt por usuário.
@@ -13,16 +13,27 @@
 // o navegador nunca vê hash de senha nem decide sozinho se alguém é admin.
 
 import crypto from 'crypto';
-import { Redis } from '@upstash/redis';
+import { neon } from '@neondatabase/serverless';
 
-const USERS_KEY = 'motor_contestacoes:users';
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12 horas
 
-function getRedis() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  return new Redis({ url, token });
+function getSql() {
+  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!connectionString) return null;
+  return neon(connectionString);
+}
+
+async function garantirTabela(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      usuario TEXT UNIQUE NOT NULL,
+      senha_hash TEXT NOT NULL,
+      papel TEXT NOT NULL DEFAULT 'operador',
+      trocar_senha BOOLEAN NOT NULL DEFAULT true,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
 }
 
 function gerarSalt() {
@@ -79,36 +90,36 @@ function tokenDaRequisicao(req) {
   return m ? verificarToken(m[1]) : null;
 }
 
-async function carregarUsuarios(redis) {
-  const dados = await redis.get(USERS_KEY);
-  if (dados && Array.isArray(dados) && dados.length > 0) return dados;
-  if (dados && typeof dados === 'string') {
-    try { const arr = JSON.parse(dados); if (Array.isArray(arr) && arr.length > 0) return arr; } catch (e) { /* segue para o seed */ }
-  }
-  // Primeiro uso: cria o admin padrão com senha temporária, igual para todo mundo.
-  const seed = [{
-    id: 1,
-    usuario: 'marcos.oliveira',
-    senhaHash: gerarSenhaHash('1234'),
-    papel: 'admin',
-    trocarSenha: true,
-    criadoEm: new Date().toISOString(),
-  }];
-  await redis.set(USERS_KEY, seed);
-  return seed;
+function paraCampo(row) {
+  return {
+    id: row.id,
+    usuario: row.usuario,
+    senhaHash: row.senha_hash,
+    papel: row.papel,
+    trocarSenha: row.trocar_senha,
+    criadoEm: row.criado_em,
+  };
 }
-async function salvarUsuarios(redis, usuarios) {
-  await redis.set(USERS_KEY, usuarios);
-}
-
-function usuarioPublico(u) {
+function usuarioPublico(row) {
+  const u = paraCampo(row);
   return { id: u.id, usuario: u.usuario, papel: u.papel, trocarSenha: u.trocarSenha, criadoEm: u.criadoEm };
 }
 
+async function garantirSeed(sql) {
+  const existentes = await sql`SELECT COUNT(*)::int AS n FROM users`;
+  if (existentes[0].n > 0) return;
+  // Primeiro uso: cria o admin padrão com senha temporária, igual para todo mundo.
+  await sql`
+    INSERT INTO users (usuario, senha_hash, papel, trocar_senha)
+    VALUES ('marcos.oliveira', ${gerarSenhaHash('1234')}, 'admin', true)
+    ON CONFLICT (usuario) DO NOTHING
+  `;
+}
+
 export default async function handler(req, res) {
-  const redis = getRedis();
-  if (!redis) {
-    res.status(500).json({ error: 'Banco de usuários não configurado. Configure KV_REST_API_URL/KV_REST_API_TOKEN (ou UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN) e SESSION_SECRET nas variáveis de ambiente do projeto na Vercel.' });
+  const sql = getSql();
+  if (!sql) {
+    res.status(500).json({ error: 'Banco de usuários não configurado. Configure DATABASE_URL (ou POSTGRES_URL) e SESSION_SECRET nas variáveis de ambiente do projeto na Vercel.' });
     return;
   }
   if (!process.env.SESSION_SECRET) {
@@ -117,11 +128,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    await garantirTabela(sql);
+    await garantirSeed(sql);
+
     if (req.method === 'GET') {
       const sessao = tokenDaRequisicao(req);
       if (!sessao || sessao.papel !== 'admin') { res.status(401).json({ error: 'Sessão inválida ou sem permissão de administrador.' }); return; }
-      const usuarios = await carregarUsuarios(redis);
-      res.status(200).json({ usuarios: usuarios.map(usuarioPublico) });
+      const linhas = await sql`SELECT * FROM users ORDER BY id`;
+      res.status(200).json({ usuarios: linhas.map(usuarioPublico) });
       return;
     }
 
@@ -131,17 +145,17 @@ export default async function handler(req, res) {
     }
 
     const { action } = req.body || {};
-    const usuarios = await carregarUsuarios(redis);
 
     if (action === 'login') {
       const { usuario, senha } = req.body || {};
-      const u = usuarios.find(x => (x.usuario || '').toLowerCase() === (usuario || '').toLowerCase());
+      const linhas = await sql`SELECT * FROM users WHERE lower(usuario) = lower(${usuario || ''})`;
+      const u = linhas[0] ? paraCampo(linhas[0]) : null;
       if (!u || !senhaConfere(senha, u.senhaHash)) {
         res.status(401).json({ error: 'Usuário ou senha inválidos.' });
         return;
       }
       const token = criarToken(u);
-      res.status(200).json({ token, usuario: usuarioPublico(u) });
+      res.status(200).json({ token, usuario: usuarioPublico(linhas[0]) });
       return;
     }
 
@@ -152,13 +166,15 @@ export default async function handler(req, res) {
     if (action === 'change-password') {
       const { novaSenha } = req.body || {};
       if (!novaSenha || novaSenha.length < 4) { res.status(400).json({ error: 'A nova senha precisa ter ao menos 4 caracteres.' }); return; }
-      const u = usuarios.find(x => x.id === sessao.id);
-      if (!u) { res.status(404).json({ error: 'Usuário não encontrado.' }); return; }
-      u.senhaHash = gerarSenhaHash(novaSenha);
-      u.trocarSenha = false;
-      await salvarUsuarios(redis, usuarios);
+      const linhas = await sql`
+        UPDATE users SET senha_hash = ${gerarSenhaHash(novaSenha)}, trocar_senha = false
+        WHERE id = ${sessao.id}
+        RETURNING *
+      `;
+      if (!linhas[0]) { res.status(404).json({ error: 'Usuário não encontrado.' }); return; }
+      const u = paraCampo(linhas[0]);
       const token = criarToken(u);
-      res.status(200).json({ token, usuario: usuarioPublico(u) });
+      res.status(200).json({ token, usuario: usuarioPublico(linhas[0]) });
       return;
     }
 
@@ -168,52 +184,54 @@ export default async function handler(req, res) {
     if (action === 'create') {
       const { usuario, senha, papel } = req.body || {};
       if (!usuario || !senha) { res.status(400).json({ error: 'Informe usuário e senha temporária.' }); return; }
-      if (usuarios.some(x => x.usuario.toLowerCase() === usuario.toLowerCase())) { res.status(409).json({ error: 'Já existe um usuário com esse login.' }); return; }
-      const novoId = usuarios.reduce((max, x) => Math.max(max, x.id), 0) + 1;
-      usuarios.push({
-        id: novoId, usuario, senhaHash: gerarSenhaHash(senha),
-        papel: papel === 'admin' ? 'admin' : 'operador', trocarSenha: true, criadoEm: new Date().toISOString(),
-      });
-      await salvarUsuarios(redis, usuarios);
-      res.status(200).json({ usuarios: usuarios.map(usuarioPublico) });
+      const existente = await sql`SELECT id FROM users WHERE lower(usuario) = lower(${usuario})`;
+      if (existente.length > 0) { res.status(409).json({ error: 'Já existe um usuário com esse login.' }); return; }
+      await sql`
+        INSERT INTO users (usuario, senha_hash, papel, trocar_senha)
+        VALUES (${usuario}, ${gerarSenhaHash(senha)}, ${papel === 'admin' ? 'admin' : 'operador'}, true)
+      `;
+      const todos = await sql`SELECT * FROM users ORDER BY id`;
+      res.status(200).json({ usuarios: todos.map(usuarioPublico) });
       return;
     }
 
     if (action === 'reset-password') {
       const { id, novaSenha } = req.body || {};
-      const u = usuarios.find(x => x.id === id);
-      if (!u) { res.status(404).json({ error: 'Usuário não encontrado.' }); return; }
-      u.senhaHash = gerarSenhaHash(novaSenha || '1234');
-      u.trocarSenha = true;
-      await salvarUsuarios(redis, usuarios);
-      res.status(200).json({ usuarios: usuarios.map(usuarioPublico) });
+      const linhas = await sql`
+        UPDATE users SET senha_hash = ${gerarSenhaHash(novaSenha || '1234')}, trocar_senha = true
+        WHERE id = ${id}
+        RETURNING id
+      `;
+      if (!linhas[0]) { res.status(404).json({ error: 'Usuário não encontrado.' }); return; }
+      const todos = await sql`SELECT * FROM users ORDER BY id`;
+      res.status(200).json({ usuarios: todos.map(usuarioPublico) });
       return;
     }
 
     if (action === 'set-role') {
       const { id, papel } = req.body || {};
-      const u = usuarios.find(x => x.id === id);
-      if (!u) { res.status(404).json({ error: 'Usuário não encontrado.' }); return; }
-      const admins = usuarios.filter(x => x.papel === 'admin');
-      if (u.papel === 'admin' && papel !== 'admin' && admins.length <= 1) {
+      const alvo = (await sql`SELECT * FROM users WHERE id = ${id}`)[0];
+      if (!alvo) { res.status(404).json({ error: 'Usuário não encontrado.' }); return; }
+      const admins = await sql`SELECT COUNT(*)::int AS n FROM users WHERE papel = 'admin'`;
+      if (alvo.papel === 'admin' && papel !== 'admin' && admins[0].n <= 1) {
         res.status(400).json({ error: 'Não é possível remover o último administrador.' });
         return;
       }
-      u.papel = papel === 'admin' ? 'admin' : 'operador';
-      await salvarUsuarios(redis, usuarios);
-      res.status(200).json({ usuarios: usuarios.map(usuarioPublico) });
+      await sql`UPDATE users SET papel = ${papel === 'admin' ? 'admin' : 'operador'} WHERE id = ${id}`;
+      const todos = await sql`SELECT * FROM users ORDER BY id`;
+      res.status(200).json({ usuarios: todos.map(usuarioPublico) });
       return;
     }
 
     if (action === 'delete') {
       const { id } = req.body || {};
       if (id === sessao.id) { res.status(400).json({ error: 'Você não pode remover o próprio usuário logado.' }); return; }
-      const alvo = usuarios.find(x => x.id === id);
-      const admins = usuarios.filter(x => x.papel === 'admin');
-      if (alvo && alvo.papel === 'admin' && admins.length <= 1) { res.status(400).json({ error: 'Não é possível remover o último administrador.' }); return; }
-      const restantes = usuarios.filter(x => x.id !== id);
-      await salvarUsuarios(redis, restantes);
-      res.status(200).json({ usuarios: restantes.map(usuarioPublico) });
+      const alvo = (await sql`SELECT * FROM users WHERE id = ${id}`)[0];
+      const admins = await sql`SELECT COUNT(*)::int AS n FROM users WHERE papel = 'admin'`;
+      if (alvo && alvo.papel === 'admin' && admins[0].n <= 1) { res.status(400).json({ error: 'Não é possível remover o último administrador.' }); return; }
+      await sql`DELETE FROM users WHERE id = ${id}`;
+      const todos = await sql`SELECT * FROM users ORDER BY id`;
+      res.status(200).json({ usuarios: todos.map(usuarioPublico) });
       return;
     }
 
@@ -224,5 +242,5 @@ export default async function handler(req, res) {
 }
 
 // Exportado só para o teste de unidade em tests/users-crypto.spec.js checar o hash de
-// senha e o token de sessão de verdade (sem precisar de um Redis real para isso).
+// senha e o token de sessão de verdade (sem precisar de um Postgres real para isso).
 export { gerarSenhaHash, senhaConfere, criarToken, verificarToken };

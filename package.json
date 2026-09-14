@@ -13,6 +13,6 @@
     "@playwright/test": "^1.56.1"
   },
   "dependencies": {
-    "@upstash/redis": "^1.38.4"
+    "@neondatabase/serverless": "^1.1.0"
   }
 }

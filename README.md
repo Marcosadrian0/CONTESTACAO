@@ -10,12 +10,12 @@ consignado e refinanciamento (linha Agibank).
 ```
 index.html          a ferramenta inteira (interface, lógica de extração, geração e padrões)
 api/anthropic.js    função serverless da Vercel, chama a API da Anthropic com a chave guardada no servidor
-api/users.js        função serverless da Vercel, login e administração de usuários (banco Redis)
+api/users.js        função serverless da Vercel, login e administração de usuários (banco Postgres/Neon)
 api/package.json    marca a pasta api/ como módulos ES (api/users.js usa import/export)
 middleware.js       middleware de borda da Vercel, restringe o acesso a IPs autorizados
 tests/              suíte de regressão (Playwright Test), ver seção "Testes automatizados"
 playwright.config.js configuração da suíte de testes
-package.json        metadados do projeto e dependências (Upstash Redis, Playwright Test)
+package.json        metadados do projeto e dependências (driver Neon, Playwright Test)
 .env.example        modelo de variável de ambiente para rodar localmente
 ```
 
@@ -56,29 +56,31 @@ funcionar.
 
 ## Banco de usuários (login/admin)
 
-Login, senha e papel (admin/operador) ficam em um banco Redis compartilhado — assim
-funcionam igual em qualquer máquina, não só na de quem cadastrou. Passo a passo para
-criar:
+Login, senha e papel (admin/operador) ficam em uma tabela Postgres compartilhada
+(banco Neon, plano gratuito) — assim funcionam igual em qualquer máquina, não só na
+de quem cadastrou. Passo a passo para criar:
 
 1. No painel do projeto na Vercel, aba **Storage** > **Create Database**.
-2. Escolha um banco **Redis** (o marketplace já teve integrações com os nomes "KV" e
-   "Upstash" — qualquer uma serve, o código aceita os dois formatos de variável).
+2. Escolha a integração **Neon** (Postgres). Na tela de instalação, **desligue o
+   toggle "Auth"** (esse toggle liga o serviço de autenticação pronto do Neon, que
+   este projeto não usa — o login já é feito pelo próprio `api/users.js`). Escolha
+   o plano **Free**.
 3. Confirme a criação e **conecte o banco a este projeto** quando a Vercel perguntar
-   (isso já preenche `KV_REST_API_URL`/`KV_REST_API_TOKEN` ou
-   `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` nas variáveis de ambiente do
-   projeto automaticamente — não precisa copiar nada manualmente).
+   (isso já preenche `DATABASE_URL` — e algumas variáveis `POSTGRES_*` equivalentes
+   — nas variáveis de ambiente do projeto automaticamente, não precisa copiar nada
+   manualmente).
 4. Em Project Settings > Environment Variables, adicione também `SESSION_SECRET`
    com uma string aleatória longa (ex.: gerada com `openssl rand -hex 32` no
    terminal, ou qualquer gerador de senha forte). Essa string assina o token de
    login — sem ela, ninguém consegue entrar.
 5. Faça (ou refaça) o deploy depois de configurar essas variáveis.
 
-No primeiro acesso ao sistema depois disso, o banco é populado automaticamente com
-o usuário administrador padrão: `marcos.oliveira`, senha temporária `1234` (o
-sistema exige a troca dessa senha assim que o login é feito). A partir daí, esse
-mesmo usuário — e qualquer outro cadastrado na aba Admin — funciona identicamente
-em qualquer navegador ou máquina, porque agora fica no banco, não mais no
-navegador de quem cadastrou.
+A tabela `users` é criada automaticamente na primeira chamada à API (não precisa
+rodar nenhum script de migração manual), e populada com o usuário administrador
+padrão: `marcos.oliveira`, senha temporária `1234` (o sistema exige a troca dessa
+senha assim que o login é feito). A partir daí, esse mesmo usuário — e qualquer
+outro cadastrado na aba Admin — funciona identicamente em qualquer navegador ou
+máquina, porque agora fica no banco, não mais no navegador de quem cadastrou.
 
 Se essas variáveis não estiverem configuradas, `api/users.js` responde com um erro
 claro ("Banco de usuários não configurado...") em vez de falhar silenciosamente.
@@ -147,8 +149,8 @@ Suíte de regressão com Playwright Test:
   de request/resposta da função de verdade).
 - `tests/users-crypto.spec.js`: teste de unidade das partes de segurança de
   `api/users.js` de verdade (hash de senha com scrypt, token de sessão assinado por
-  HMAC, rejeição de token adulterado/expirado) — sem precisar de Redis para isso,
-  são funções puras.
+  HMAC, rejeição de token adulterado/expirado) — sem precisar de Postgres para
+  isso, são funções puras.
 
 ```
 npm install
@@ -188,8 +190,9 @@ na tela, e um estouro de layout em telas estreitas causado por um item de grid s
   margem do cliente selecionado, antes do download.
 - Login obrigatório antes de usar o sistema, com troca de senha forçada no
   primeiro acesso quando o usuário ainda está com senha temporária. Usuários,
-  senha (hash com scrypt) e papel ficam num banco Redis compartilhado (ver seção
-  "Banco de usuários"), não mais no navegador — funciona igual em qualquer máquina.
+  senha (hash com scrypt) e papel ficam numa tabela Postgres compartilhada (Neon,
+  ver seção "Banco de usuários"), não mais no navegador — funciona igual em qualquer
+  máquina.
   A verificação de senha e a checagem de papel de admin acontecem no servidor,
   com um token de sessão assinado por HMAC (expira em 12h).
 - Aba Admin (visível só para usuários com papel de administrador) para cadastrar
@@ -253,10 +256,10 @@ poucas dezenas de contas) é um risco aceitável; reavaliar se o uso crescer.
 
 ## Próximos passos sugeridos
 
-1. Persistência real de `cases`, `analyses` e `clientes` (ex.: no mesmo Redis dos
-   usuários, ou um banco relacional como Postgres/Supabase), em vez de variáveis
-   em memória — planejado para depois de validar as regras de negócio com uso
-   real (ver "Limitação atual mais importante").
+1. Persistência real de `cases`, `analyses` e `clientes` (ex.: no mesmo Postgres
+   dos usuários, com tabelas próprias), em vez de variáveis em memória — planejado
+   para depois de validar as regras de negócio com uso real (ver "Limitação atual
+   mais importante").
 2. Ampliar a biblioteca de teses (`TEMA_PRODUTOS` em `index.html`) à medida que
    mais contestações reais forem validadas, seguindo o mesmo processo usado para
    os seis temas atuais: ler peças reais, extrair o padrão comum, e só então
