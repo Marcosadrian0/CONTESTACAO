@@ -117,17 +117,21 @@ async function garantirSeed(sql) {
 }
 
 export default async function handler(req, res) {
-  const sql = getSql();
-  if (!sql) {
-    res.status(500).json({ error: 'Banco de usuários não configurado. Configure DATABASE_URL (ou POSTGRES_URL) e SESSION_SECRET nas variáveis de ambiente do projeto na Vercel.' });
-    return;
-  }
-  if (!process.env.SESSION_SECRET) {
-    res.status(500).json({ error: 'SESSION_SECRET não configurada nas variáveis de ambiente do projeto.' });
-    return;
-  }
-
+  // Tudo dentro de um único try/catch, incluindo a leitura das variáveis de ambiente
+  // e a criação do cliente do banco: sem isso, um erro nessa etapa (ex.: DATABASE_URL
+  // malformada) derruba a função inteira (FUNCTION_INVOCATION_FAILED da Vercel) em vez
+  // de responder com uma mensagem de erro em JSON que o navegador consegue mostrar.
   try {
+    const sql = getSql();
+    if (!sql) {
+      res.status(500).json({ error: 'Banco de usuários não configurado. Configure DATABASE_URL (ou POSTGRES_URL) e SESSION_SECRET nas variáveis de ambiente do projeto na Vercel.' });
+      return;
+    }
+    if (!process.env.SESSION_SECRET) {
+      res.status(500).json({ error: 'SESSION_SECRET não configurada nas variáveis de ambiente do projeto.' });
+      return;
+    }
+
     await garantirTabela(sql);
     await garantirSeed(sql);
 
