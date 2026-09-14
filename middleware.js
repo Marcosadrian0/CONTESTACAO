@@ -29,8 +29,10 @@ export default function middleware(request) {
   const permitidos = listaPermitida();
 
   if (!ip || !permitidos.includes(ip)) {
+    // Mostra o IP detectado na própria mensagem: ajuda a diagnosticar bloqueio por
+    // IPv6/rede diferente do esperado sem precisar de acesso a log do servidor.
     return new Response(
-      'Acesso restrito: este endereço IP não está autorizado a acessar este sistema.\n',
+      `Acesso restrito: o endereço IP detectado (${ip || 'nenhum'}) não está na lista autorizada.\n`,
       { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8' } }
     );
   }
