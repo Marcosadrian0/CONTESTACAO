@@ -958,9 +958,13 @@ const TEMA_PRODUTOS = {
 };
 
 // Blocos fixos: mesmo texto nas 3 peças de referência, não variam por tema. Nunca passam por IA.
+// A citação de jurisprudência em "biometria" (REsp 2.159.442/PR, STJ) foi pesquisada e
+// verificada em múltiplas fontes (incluindo o site oficial do STJ) em 15/09/2026. Jurisprudência
+// muda: reconferir a citação na fonte oficial (stj.jus.br) periodicamente e sempre antes de um
+// protocolo real, não presumir que continua válida indefinidamente.
 const BLOCOS_FIXOS = {
   provaContratacao: 'A instituição ré demonstra, a seguir, as etapas percorridas pela parte autora até o recebimento do crédito ou a formalização do produto: procura ou consulta de margem, confirmação da proposta, envio de documento de identificação, reconhecimento biométrico facial e transferência do valor ou formalização do produto, conforme documentos anexados a esta defesa.',
-  biometria: 'A contratação foi formalizada por meio de assinatura eletrônica avançada, nos termos do art. 4º, II, da Lei nº 14.063/2020, mediante autenticação por biometria facial com verificação de vivacidade (liveness) e comparação com o documento de identificação apresentado. Tal forma de autenticação encontra respaldo no art. 10, § 2º, da MP 2.200-2/2001 e no art. 107 do Código Civil. [Citar aqui o precedente do STJ sobre validade da biometria facial mais recente e já conferido na fonte oficial antes do protocolo, não reaproveitar citação de peça anterior sem checagem.]',
+  biometria: 'A contratação foi formalizada por meio de assinatura eletrônica avançada, nos termos do art. 4º, II, da Lei nº 14.063/2020, mediante autenticação por biometria facial com verificação de vivacidade (liveness) e comparação com o documento de identificação apresentado. Tal forma de autenticação encontra respaldo no art. 10, § 2º, da MP 2.200-2/2001 e no art. 107 do Código Civil, e vem sendo reconhecida pela jurisprudência do Superior Tribunal de Justiça: no julgamento do REsp 2.159.442/PR (Terceira Turma, Rel. Min. Nancy Andrighi, julgado em 29/11/2024), a Corte assentou que a ausência de certificação pelo sistema ICP-Brasil não invalida, por si só, a assinatura eletrônica avançada, sob pena de "excessivo formalismo diante da nova realidade do mundo virtual", sendo válida a autenticação por outros meios idôneos aceitos pelas partes.',
   presuncaoAssinatura: 'Nos termos do art. 411, III, do Código de Processo Civil, presume-se autêntico todo documento não impugnado pela parte contra quem foi produzido. O art. 428, I, do mesmo diploma dispõe que somente a impugnação expressa da autenticidade afasta a fé do documento particular. À míngua de impugnação específica da parte autora quanto à assinatura eletrônica aposta no contrato ora discutido, ela deve ser presumida autêntica.',
   onusProva: 'Embora a relação discutida possa estar submetida ao Código de Defesa do Consumidor, a inversão do ônus da prova não decorre de forma automática. Nos termos do art. 6º, VIII, do CDC, sua aplicação depende da verossimilhança das alegações ou da hipossuficiência do consumidor. No presente caso, a parte autora limita-se a negar a contratação sem apresentar elementos mínimos que corroborem a alegação, ao passo que a instituição financeira ré demonstra, de forma documentada, a regularidade da operação.',
   meritoRepeticao: 'Comprovada a regularidade da contratação, a repetição do indébito não é cabível, por ausência de pagamento indevido. Subsidiariamente, em atenção ao princípio da eventualidade, a devolução em dobro esbarra na hipótese de engano justificável (art. 42, parágrafo único, do CDC), e, caso superado esse argumento, deve observar a modulação temporal fixada pelo Superior Tribunal de Justiça no EAREsp 600.663/RS, aplicando-se a dobra somente aos descontos posteriores a 30 de março de 2021, com correção monetária incidente sobre cada parcela a partir da respectiva data (Súmula 43 do STJ).',
@@ -1407,7 +1411,6 @@ function renderStepper(c){
   const passos = [
     { label: 'Dados extraídos', done: true },
     { label: 'Minuta gerada', done: !!c.contestacao },
-    { label: 'Revisão confirmada', done: !!(c.revisao && c.revisao.advogadoOk && c.revisao.stjOk) },
     { label: 'Arquivo baixado', done: !!c.baixadoEm },
   ];
   const atualIdx = passos.findIndex(p => !p.done);
@@ -1438,8 +1441,7 @@ async function generateContestacao(id){
   c.contestacao = { secoes, source, generatedAt: new Date(), geradoPor: currentUser ? currentUser.usuario : null };
   c.quality = quality;
   c.genStatus = 'pronto';
-  // nova geração reabre a revisão obrigatória: o conteúdo mudou, a confirmação anterior não vale mais
-  c.revisao = { advogadoOk:false, stjOk:false, confirmadoPor:null, confirmadoEm:null };
+  c.baixadoEm = null; // nova geração: o arquivo anterior não corresponde mais ao conteúdo atual
 
   analyses.unshift({ caseId:c.id, name:c.name, tema:f.tema, score:quality.score, checks:quality.checks, source, generatedAt:c.contestacao.generatedAt, geradoPor:c.contestacao.geradoPor });
 
@@ -1595,7 +1597,6 @@ async function handleFile(file){
     criadoEm: new Date(),
     dataCitacao: null, prazoDias: 15, dataLimite: null,
     desfecho: 'pendente',
-    revisao: { advogadoOk:false, stjOk:false, confirmadoPor:null, confirmadoEm:null },
     baixadoEm: null,
   };
   cases.unshift(caseObj);
@@ -1811,37 +1812,11 @@ function renderGeracao(id){
   document.getElementById('dataCitacaoInput').addEventListener('change', atualizarPrazoGeracao);
   document.getElementById('prazoDiasInput').addEventListener('change', atualizarPrazoGeracao);
   if(c.contestacao){
-    const revisao = c.revisao || { advogadoOk:false, stjOk:false };
-    const btnDownload = document.getElementById('downloadDocBtn');
-    const btnPrint = document.getElementById('printDocBtn');
-    function atualizarGateRevisao(){
-      const liberado = revisao.advogadoOk && revisao.stjOk;
-      btnDownload.disabled = !liberado;
-      btnPrint.disabled = !liberado;
-      const infoEl = document.getElementById('confirmadoInfo');
-      infoEl.textContent = revisao.confirmadoPor
-        ? `confirmado por ${revisao.confirmadoPor} em ${new Date(revisao.confirmadoEm).toLocaleString('pt-BR')}`
-        : '';
-      document.getElementById('stepperWrap').innerHTML = renderStepper(c);
-    }
-    document.getElementById('revisaoAdvogadoCheck').addEventListener('change', e=>{
-      revisao.advogadoOk = e.target.checked;
-      if(revisao.advogadoOk && revisao.stjOk){ revisao.confirmadoPor = currentUser.usuario; revisao.confirmadoEm = new Date(); }
-      c.revisao = revisao;
-      atualizarGateRevisao();
-    });
-    document.getElementById('revisaoStjCheck').addEventListener('change', e=>{
-      revisao.stjOk = e.target.checked;
-      if(revisao.advogadoOk && revisao.stjOk){ revisao.confirmadoPor = currentUser.usuario; revisao.confirmadoEm = new Date(); }
-      c.revisao = revisao;
-      atualizarGateRevisao();
-    });
-    atualizarGateRevisao();
-    btnDownload.addEventListener('click', ()=>{
+    document.getElementById('downloadDocBtn').addEventListener('click', ()=>{
       downloadWord(c);
       document.getElementById('stepperWrap').innerHTML = renderStepper(c);
     });
-    btnPrint.addEventListener('click', ()=>{
+    document.getElementById('printDocBtn').addEventListener('click', ()=>{
       printDoc(c);
       document.getElementById('stepperWrap').innerHTML = renderStepper(c);
     });
@@ -1867,8 +1842,6 @@ function renderContestacaoBlock(c){
   const cabecalhoSangrado = cabecalhoHtml
     ? `<div style="margin:-${margens.top}cm -${margens.right}cm 16px -${margens.left}cm;">${cabecalhoHtml}</div>`
     : '';
-  const revisao = c.revisao || { advogadoOk:false, stjOk:false, confirmadoPor:null, confirmadoEm:null };
-  const liberadoParaBaixar = revisao.advogadoOk && revisao.stjOk;
   return `
     <div class="view-head" style="margin-top:38px">
       <div class="kicker">Minuta de contestação, modelo padrão validado</div>
@@ -1877,21 +1850,9 @@ function renderContestacaoBlock(c){
     </div>
     <div class="gen-toolbar">
       <div class="status-chip" style="color:var(--ink-dim)"><i style="background:var(--ink-faint)"></i>gerado em ${new Date(d.generatedAt).toLocaleString('pt-BR')}${d.geradoPor ? ` por ${d.geradoPor}` : ''}</div>
-    </div>
-    <div class="callout">
-      <b>Antes de liberar o arquivo, confirme:</b>
-      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:10px; cursor:pointer;">
-        <input type="checkbox" id="revisaoAdvogadoCheck" ${revisao.advogadoOk ? 'checked' : ''} style="margin-top:3px;">
-        <span>Um advogado revisou o conteúdo completo desta minuta e está de acordo com o texto antes do protocolo.</span>
-      </label>
-      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; cursor:pointer;">
-        <input type="checkbox" id="revisaoStjCheck" ${revisao.stjOk ? 'checked' : ''} style="margin-top:3px;">
-        <span>A citação do STJ sobre biometria facial (seção "Validade técnico-jurídica...") foi conferida na fonte oficial e está atualizada.</span>
-      </label>
-      <div id="confirmadoInfo" style="margin-top:10px; font-size:11px; color:var(--ink-faint); font-family:var(--mono);">${revisao.confirmadoPor ? `confirmado por ${revisao.confirmadoPor} em ${new Date(revisao.confirmadoEm).toLocaleString('pt-BR')}` : ''}</div>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
-        <button class="btn-generate" id="downloadDocBtn" style="background:var(--green)" ${liberadoParaBaixar?'':'disabled'}>Baixar contestação (.doc)</button>
-        <button class="btn-generate" id="printDocBtn" style="background:var(--ink-dim)" ${liberadoParaBaixar?'':'disabled'}>Imprimir / salvar PDF</button>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-generate" id="downloadDocBtn" style="background:var(--green)">Baixar contestação (.doc)</button>
+        <button class="btn-generate" id="printDocBtn" style="background:var(--ink-dim)">Imprimir / salvar PDF</button>
       </div>
     </div>
     <div class="qa-shell" style="margin-top:16px">

@@ -235,18 +235,10 @@ test.describe('geração de contestação', () => {
     await expect(page.locator('#downloadDocBtn')).toBeVisible();
   }
 
-  test('download e impressão ficam bloqueados até confirmar as duas revisões', async ({ page }) => {
+  test('download e impressão ficam liberados assim que a minuta é gerada', async ({ page }) => {
     await gerarContestacao(page);
-    await expect(page.locator('#downloadDocBtn')).toBeDisabled();
-    await expect(page.locator('#printDocBtn')).toBeDisabled();
-
-    await page.check('#revisaoAdvogadoCheck');
-    await expect(page.locator('#downloadDocBtn')).toBeDisabled();
-
-    await page.check('#revisaoStjCheck');
     await expect(page.locator('#downloadDocBtn')).toBeEnabled();
     await expect(page.locator('#printDocBtn')).toBeEnabled();
-    await expect(page.locator('#confirmadoInfo')).toContainText('marcos.oliveira');
   });
 
   test('prazo processual calcula a data-limite e os dias úteis restantes', async ({ page }) => {
@@ -266,14 +258,17 @@ test.describe('geração de contestação', () => {
     await expect(page.locator('#analisesBody')).toContainText('100%');
   });
 
-  test('nova versão da minuta reabre a revisão obrigatória', async ({ page }) => {
+  test('nova versão da minuta reseta o passo "arquivo baixado" do indicador de progresso', async ({ page }) => {
     await gerarContestacao(page);
-    await page.check('#revisaoAdvogadoCheck');
-    await page.check('#revisaoStjCheck');
-    await expect(page.locator('#downloadDocBtn')).toBeEnabled();
+    await Promise.all([
+      page.waitForEvent('download'),
+      page.click('#downloadDocBtn'),
+    ]);
+    await expect(page.locator('.stepper .step').last()).toHaveClass(/done/);
 
     await page.click('#genBtn');
-    await expect(page.locator('#downloadDocBtn')).toBeDisabled();
+    await expect(page.locator('#downloadDocBtn')).toBeVisible();
+    await expect(page.locator('.stepper .step').last()).not.toHaveClass(/done/);
   });
 });
 
