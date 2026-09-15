@@ -143,7 +143,7 @@ Suíte de regressão com Playwright Test:
 
 - `tests/app.spec.js`: fluxos de login e troca de senha obrigatória, administração
   de usuários, segregação de acesso por operador, geração de minuta com
-  prazo/revisão obrigatória/desfecho, e responsividade básica. Roda contra o
+  prazo/desfecho, e responsividade básica. Roda contra o
   próprio `index.html` sem precisar de banco real nem `ANTHROPIC_API_KEY` (pdf.js e
   mammoth.js viram um stub; `/api/users` é simulado em memória, com o mesmo formato
   de request/resposta da função de verdade).
@@ -206,17 +206,22 @@ na tela, e um estouro de layout em telas estreitas causado por um item de grid s
   quantos dias úteis faltam, com aviso visual quando o prazo está próximo ou
   vencido. É uma estimativa (só desconta sábado e domingo, sem calendário de
   feriados forenses por comarca) — sempre conferir o prazo real no processo.
-- Revisão obrigatória antes do download: os botões de baixar e imprimir a
-  minuta ficam bloqueados até marcar duas confirmações (revisão do advogado
-  concluída, e citação do STJ sobre biometria facial conferida na fonte
-  oficial). A confirmação registra quem confirmou e quando.
+- Download e impressão liberados assim que a minuta é gerada, sem confirmação
+  extra bloqueando o botão (decisão explícita do usuário, ver "Limitação atual
+  mais importante" — o texto de aviso de que a revisão do advogado é
+  obrigatória antes do protocolo continua na tela, só não trava mais nada).
 - Registro de quem gerou cada minuta (usuário logado, data e hora), visível no
   topo da minuta gerada e na aba Análises.
 - Desfecho real do processo (pendente, procedente, improcedente, acordo)
   registrável na aba Geração; a aba Análises calcula a taxa de êxito real a
   partir dos desfechos já registrados, além do checklist de completude.
-- Indicador de progresso (dados extraídos → minuta gerada → revisão confirmada →
-  arquivo baixado) na aba Geração, refletindo o estado real de cada processo.
+- Indicador de progresso (dados extraídos → minuta gerada → arquivo baixado)
+  na aba Geração, refletindo o estado real de cada processo.
+- Citação de jurisprudência real do STJ na seção de biometria/assinatura
+  eletrônica (REsp 2.159.442/PR, Terceira Turma, Rel. Min. Nancy Andrighi,
+  29/11/2024), pesquisada e verificada em múltiplas fontes — ver comentário
+  em `BLOCOS_FIXOS` no código para a data da verificação e o lembrete de
+  reconferir na fonte oficial (stj.jus.br) antes de qualquer protocolo real.
 - Aviso visual claro nas abas "Casos similares" e "Portão de qualidade" de que são
   telas de protótipo com dados ilustrativos fixos, não conectadas aos processos
   reais da sessão.
@@ -253,6 +258,15 @@ Mesmo com o banco de usuários, isto ainda não é autenticação de nível banc
 há limite de tentativas de login (proteção contra força bruta), nem rotação/revogação
 de token antes da expiração (12h). Para o volume de uso desta ferramenta (uso interno,
 poucas dezenas de contas) é um risco aceitável; reavaliar se o uso crescer.
+
+**Decisão explícita do usuário sobre a revisão antes do download.** Em uma versão
+anterior, o sistema exigia marcar duas confirmações (revisão do advogado concluída e
+citação do STJ conferida) antes de liberar o botão de baixar/imprimir a minuta. A
+pedido do usuário, essa trava foi removida: o download/impressão fica liberado assim
+que a minuta é gerada, sem clique extra. O aviso de que a revisão humana é obrigatória
+antes do protocolo continua visível na tela, só deixou de ser uma trava técnica —
+agora depende inteiramente do processo de trabalho de quem usa a ferramenta, o
+sistema não impede mais o download de uma minuta não revisada.
 
 ## Próximos passos sugeridos
 
