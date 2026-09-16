@@ -26,22 +26,26 @@ async function stubarBibliotecas(page) {
   });
 }
 
-// api/users.js precisa de um Redis real (ver tests/users-crypto.spec.js para o teste de
-// unidade do hash de senha e do token, que são a parte que realmente importa checar contra
-// código de verdade). Aqui, para os testes de fluxo (login, admin, geração), simulamos a
-// mesma API — mesmo formato de request/response — com um "banco" em memória por teste.
-async function instalarMockApiUsuarios(page) {
+// api/users.js e api/dados.js precisam de um Postgres real (ver tests/users-crypto.spec.js
+// para o teste de unidade do hash de senha e do token, que é a parte que realmente importa
+// checar contra código de verdade). Aqui, para os testes de fluxo (login, admin, geração,
+// segregação por empresa), simulamos as duas APIs — mesmo formato de request/response — com
+// um "banco" em memória por teste, incluindo empresas e o estado de dados por empresa.
+async function instalarMocksBackend(page) {
+  let empresas = [{ id: 1, nome: 'Interno (admin master)' }];
+  let proximoEmpresaId = 2;
   let usuarios = [
-    { id: 1, usuario: 'marcos.oliveira', senha: '1234', papel: 'admin', trocarSenha: true },
+    { id: 1, usuario: 'marcos.oliveira', senha: '1234', papel: 'admin', trocarSenha: true, empresaId: 1 },
   ];
   let proximoId = 2;
+  let estadoPorEmpresa = {}; // empresaId -> { cases, analyses, clientes, teses, ... }
 
   const tokenPara = u => `TESTE-TOKEN-${u.id}`;
   const usuarioDoToken = auth => {
     const m = /^Bearer TESTE-TOKEN-(\d+)$/.exec(auth || '');
     return m ? usuarios.find(u => u.id === parseInt(m[1])) || null : null;
   };
-  const publico = u => ({ id: u.id, usuario: u.usuario, papel: u.papel, trocarSenha: u.trocarSenha });
+  const publico = u => ({ id: u.id, usuario: u.usuario, papel: u.papel, trocarSenha: u.trocarSenha, empresaId: u.empresaId });
 
   await page.route('**/api/users*', async route => {
     const req = route.request();
@@ -50,7 +54,7 @@ async function instalarMockApiUsuarios(page) {
     if (req.method() === 'GET') {
       const sessao = usuarioDoToken(auth);
       if (!sessao || sessao.papel !== 'admin') { await route.fulfill({ status: 401, json: { error: 'Sessão inválida ou sem permissão de administrador.' } }); return; }
-      await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico) } });
+      await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico), empresas } });
       return;
     }
 
@@ -75,9 +79,23 @@ async function instalarMockApiUsuarios(page) {
 
     if (sessao.papel !== 'admin') { await route.fulfill({ status: 403, json: { error: 'Ação restrita a administradores.' } }); return; }
 
+    if (body.action === 'criar-empresa') {
+      if (!body.nome || !body.nome.trim()) { await route.fulfill({ status: 400, json: { error: 'Informe o nome da empresa.' } }); return; }
+      if (empresas.some(e => e.nome.toLowerCase() === body.nome.trim().toLowerCase())) { await route.fulfill({ status: 409, json: { error: 'Já existe uma empresa com esse nome.' } }); return; }
+      empresas.push({ id: proximoEmpresaId++, nome: body.nome.trim() });
+      await route.fulfill({ status: 200, json: { empresas } });
+      return;
+    }
     if (body.action === 'create') {
       if (usuarios.some(u => u.usuario.toLowerCase() === body.usuario.toLowerCase())) { await route.fulfill({ status: 409, json: { error: 'Já existe um usuário com esse login.' } }); return; }
-      usuarios.push({ id: proximoId++, usuario: body.usuario, senha: body.senha, papel: body.papel === 'admin' ? 'admin' : 'operador', trocarSenha: true });
+      if (!body.empresaId) { await route.fulfill({ status: 400, json: { error: 'Selecione a empresa do novo usuário.' } }); return; }
+      usuarios.push({ id: proximoId++, usuario: body.usuario, senha: body.senha, papel: body.papel === 'admin' ? 'admin' : 'operador', trocarSenha: true, empresaId: body.empresaId });
+      await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico) } });
+      return;
+    }
+    if (body.action === 'set-empresa') {
+      const u = usuarios.find(x => x.id === body.id);
+      if (u) u.empresaId = body.empresaId;
       await route.fulfill({ status: 200, json: { usuarios: usuarios.map(publico) } });
       return;
     }
@@ -101,6 +119,34 @@ async function instalarMockApiUsuarios(page) {
       return;
     }
     await route.fulfill({ status: 400, json: { error: 'ação desconhecida no mock' } });
+  });
+
+  await page.route('**/api/dados*', async route => {
+    const req = route.request();
+    const auth = req.headers()['authorization'];
+    const sessao = usuarioDoToken(auth);
+    if (!sessao) { await route.fulfill({ status: 401, json: { error: 'Sessão inválida ou expirada, faça login novamente.' } }); return; }
+
+    if (req.method() === 'GET') {
+      const url = new URL(req.url());
+      const empresaIdQuery = url.searchParams.get('empresaId');
+      const souAdmin = sessao.papel === 'admin';
+      if (souAdmin && !empresaIdQuery) {
+        await route.fulfill({ status: 200, json: { modo: 'todas', empresas: empresas.map(e => ({ empresaId: e.id, empresaNome: e.nome, dados: estadoPorEmpresa[e.id] || {} })) } });
+        return;
+      }
+      const empresaId = souAdmin ? parseInt(empresaIdQuery) : sessao.empresaId;
+      const empresa = empresas.find(e => e.id === empresaId);
+      if (!empresa) { await route.fulfill({ status: 404, json: { error: 'Empresa não encontrada.' } }); return; }
+      await route.fulfill({ status: 200, json: { modo: 'empresa', empresaId: empresa.id, empresaNome: empresa.nome, dados: estadoPorEmpresa[empresaId] || {} } });
+      return;
+    }
+
+    const body = req.postDataJSON() || {};
+    if (body.action !== 'salvar') { await route.fulfill({ status: 400, json: { error: 'ação inválida' } }); return; }
+    const alvo = (sessao.papel === 'admin' && body.empresaId) ? body.empresaId : sessao.empresaId;
+    estadoPorEmpresa[alvo] = body.dados;
+    await route.fulfill({ status: 200, json: { ok: true } });
   });
 }
 
@@ -129,7 +175,7 @@ test.beforeEach(async ({ page }) => {
   // sem acesso a esses domínios específicos.
   await page.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com/, route => route.abort());
   await stubarBibliotecas(page);
-  await instalarMockApiUsuarios(page);
+  await instalarMocksBackend(page);
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
 });
 
@@ -228,6 +274,62 @@ test.describe('admin e segregação de acesso', () => {
 
     await page.click('#filtroMeus');
     await expect(page.locator('#filaBody')).not.toContainText('operador.segregacao');
+  });
+});
+
+test.describe('segregação por empresa (multi-tenant)', () => {
+  test('uma empresa não vê os processos da outra; admin master vê todas em modo agregado, só leitura', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+
+    // Processo na própria empresa do admin master ("Interno").
+    const [fc1] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc1.setFiles(PETICAO_TESTE);
+    await expect(page.locator('.q-row[data-id]')).toHaveCount(1);
+
+    // Cria uma segunda empresa e um usuário para ela.
+    await page.click('#tabAdmin');
+    await page.fill('#novaEmpresaNome', 'Empresa B');
+    await page.click('#addEmpresaBtn');
+    await expect(page.locator('#adminBody')).toContainText('Empresa B');
+
+    await page.fill('#novoUsuario', 'usuario.empresab');
+    await page.fill('#novaSenhaUsuario', '1234');
+    await page.selectOption('#novaEmpresaUsuario', { label: 'Empresa B' });
+    await page.click('#addUserBtn');
+    await expect(page.locator('#adminBody')).toContainText('usuario.empresab');
+
+    // O usuário da Empresa B não vê o processo da empresa do admin master.
+    await page.click('#logoutBtn');
+    await login(page, 'usuario.empresab', '1234');
+    await trocarSenha(page, 'empresaBSenha123');
+    await expect(page.locator('.q-row[data-id]')).toHaveCount(0);
+
+    const [fc2] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc2.setFiles(PETICAO_TESTE);
+    await expect(page.locator('.q-row[data-id]')).toHaveCount(1);
+
+    // De volta como admin master: a própria empresa continua vendo só o processo dela.
+    await page.click('#logoutBtn');
+    await login(page, 'marcos.oliveira', 'novaSenha123');
+    await expect(page.locator('.q-row[data-id]')).toHaveCount(1);
+
+    // Selecionando "todas as empresas": vê os dois processos, cada um com o nome da empresa.
+    await page.selectOption('#empresaSeletor', 'todas');
+    await expect(page.locator('.q-row[data-id]')).toHaveCount(2);
+    await expect(page.locator('#filaBody')).toContainText('Interno (admin master)');
+    await expect(page.locator('#filaBody')).toContainText('Empresa B');
+
+    // Modo agregado é só leitura: não abre o dropzone de upload.
+    page.on('dialog', dialog => dialog.accept());
+    const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 1500 }).catch(() => null);
+    await page.click('#dropzone');
+    const fc = await fileChooserPromise;
+    expect(fc).toBeNull();
+
+    // Selecionando a Empresa B especificamente: só o processo dela aparece, e edita normalmente.
+    await page.selectOption('#empresaSeletor', { label: 'Empresa B' });
+    await expect(page.locator('.q-row[data-id]')).toHaveCount(1);
+    await expect(page.locator('#filaBody')).not.toContainText('Interno (admin master)');
   });
 });
 
