@@ -345,6 +345,50 @@ test.describe('geração de contestação', () => {
   });
 });
 
+test.describe('padrões por cliente', () => {
+  test('abas Aparência/Conteúdo/Avançado alternam os campos do formulário', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.click('[data-view="padroes"]');
+    await expect(page.locator('#padPanelAparencia')).toBeVisible();
+    await expect(page.locator('#padPanelConteudo')).toBeHidden();
+
+    await page.click('.pad-tab[data-tab="conteudo"]');
+    await expect(page.locator('#padPanelConteudo')).toBeVisible();
+    await expect(page.locator('#padPanelAparencia')).toBeHidden();
+
+    await page.click('.pad-tab[data-tab="avancado"]');
+    await expect(page.locator('#padPanelAvancado')).toBeVisible();
+    await expect(page.locator('#padPanelConteudo')).toBeHidden();
+  });
+
+  test('rodapé, marca d\'água, fonte e numeração de página ficam salvos e aparecem na prévia e na listagem', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.click('[data-view="padroes"]');
+    await page.fill('#clientNome', 'Cliente Teste Visual');
+
+    await page.click('.pad-tab[data-tab="conteudo"]');
+    await page.check('#rodapeAtivo');
+    await page.fill('#rodapeTexto', 'Rodapé de teste automatizado');
+    await page.check('#marcaDaguaAtiva');
+    await page.fill('#marcaDaguaTexto', 'CONFIDENCIAL');
+
+    await page.click('.pad-tab[data-tab="avancado"]');
+    await page.selectOption('#fonteSelect', 'Arial');
+    await page.selectOption('#fonteTamanho', '11');
+    await page.selectOption('#numeracaoSelect', 'rodape-direita');
+
+    await expect(page.locator('#docPreviewPanel')).toContainText('Rodapé de teste automatizado');
+    await expect(page.locator('#docPreviewPanel')).toContainText('CONFIDENCIAL');
+
+    await page.click('#saveClientBtn');
+    await expect(page.locator('.client-list')).toContainText('Cliente Teste Visual');
+    await expect(page.locator('.client-list')).toContainText('Rodapé ativo');
+    await expect(page.locator('.client-list')).toContainText('CONFIDENCIAL');
+    await expect(page.locator('.client-list')).toContainText('Arial, 11pt');
+    await expect(page.locator('.client-list')).toContainText('Rodapé, à direita');
+  });
+});
+
 test.describe('layout responsivo', () => {
   test('telas de duas colunas empilham em largura de tablet (768px)', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1000 });

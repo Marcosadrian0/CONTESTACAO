@@ -246,6 +246,12 @@ main{max-width:1240px; margin:0 auto; padding:38px 34px 100px;}
 .f-row4{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px;}
 .f-row4 label{font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;}
 .f-check{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-dim); margin-bottom:14px; cursor:pointer;}
+.pad-tabs{display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--line);}
+.pad-tab{
+  font-family:var(--sans); font-size:12.5px; font-weight:600; color:var(--ink-faint); background:none; border:none;
+  padding:8px 4px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;
+}
+.pad-tab.active{color:var(--cyan); border-bottom-color:var(--cyan);}
 .logo-preview{
   width:100%; height:70px; border:1px dashed var(--line-strong); border-radius:8px; margin-bottom:14px;
   display:flex; align-items:center; justify-content:center; overflow:hidden; background:#fff;
@@ -908,6 +914,8 @@ let clienteSeq = 1;
 let teses = [];
 let teseSeq = 1;
 const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
+const FONTE_PADRAO = { familia:'Times New Roman', tamanho:12, espacamento:1.5 };
+const FONTES_DISPONIVEIS = ['Times New Roman', 'Arial', 'Calibri', 'Georgia'];
 let filaFiltro = 'todos'; // 'todos' | 'meus' — só tem efeito para papel admin, operador sempre vê só os seus
 
 // Persistência local: fila, análises e padrões de cliente ficam salvos no navegador
@@ -1237,6 +1245,14 @@ function renderTeses(){
 }
 
 /* ---------------- padrões por cliente ---------------- */
+const NUMERACAO_OPCOES = {
+  'nenhuma': 'Sem numeração',
+  'rodape-esquerda': 'Rodapé, à esquerda',
+  'rodape-centro': 'Rodapé, ao centro',
+  'rodape-direita': 'Rodapé, à direita',
+  'cabecalho-direita': 'Cabeçalho, à direita',
+};
+
 function renderPadroes(){
   salvarEstado();
   const body = document.getElementById('padroesBody');
@@ -1256,6 +1272,10 @@ function renderPadroes(){
               <div class="client-badges">
                 <span class="client-badge ${cl.headerMode!=='nenhum' ? '' : 'off'}">${resumoModo(cl)}</span>
                 <span class="client-badge ${cl.margensPersonalizadas ? '' : 'off'}">${cl.margensPersonalizadas ? `Margens ${cl.margens.top}/${cl.margens.right}/${cl.margens.bottom}/${cl.margens.left} cm` : 'Margens do sistema'}</span>
+                <span class="client-badge ${cl.rodapeAtivo ? '' : 'off'}">${cl.rodapeAtivo ? 'Rodapé ativo' : 'Sem rodapé'}</span>
+                <span class="client-badge ${cl.marcaDaguaAtiva ? '' : 'off'}">${cl.marcaDaguaAtiva ? `Marca d'água: ${cl.marcaDaguaTexto||''}` : 'Sem marca d’água'}</span>
+                <span class="client-badge">${cl.fonte || FONTE_PADRAO.familia}, ${cl.fonteTamanho || FONTE_PADRAO.tamanho}pt</span>
+                <span class="client-badge ${cl.numeracaoPagina && cl.numeracaoPagina!=='nenhuma' ? '' : 'off'}">${NUMERACAO_OPCOES[cl.numeracaoPagina||'nenhuma']}</span>
               </div>
             </div>
           </div>
@@ -1273,41 +1293,68 @@ function renderPadroes(){
       <label class="f-label">Nome do cliente</label>
       <input class="f-input" id="clientNome" placeholder="ex.: Banco Agibank S.A.">
 
-      <label class="f-label">Cabeçalho do documento</label>
-      <select class="f-input" id="headerMode">
-        <option value="nenhum">Nenhum (documento sem identidade visual)</option>
-        <option value="montar">Montar cabeçalho no sistema</option>
-        <option value="anexar">Anexar cabeçalho pronto (imagem)</option>
-      </select>
-
-      <div id="headerPreviewWrap" style="border-radius:8px; overflow:hidden; border:1px solid var(--line); margin-bottom:14px;"></div>
-
-      <div id="camposMontar">
-        <label class="f-label">Logo</label>
-        <div class="logo-preview" id="logoPreview"><span>nenhuma logo selecionada</span></div>
-        <input type="file" accept="image/*" id="clientLogoInput" class="f-input" style="padding:6px;">
-        <label class="f-label">Posição da logo</label>
-        <select class="f-input" id="headerLogoPos"><option value="left">Esquerda</option><option value="center">Centro</option></select>
-        <label class="f-label">Cor da tarja</label>
-        <input type="color" id="headerCor" value="#1a56db" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line-strong); margin-bottom:14px; background:var(--bg);">
-        <label class="f-check"><input type="checkbox" id="headerPontinhos" checked> Incluir pontinhos decorativos (estilo do exemplo do Agibank)</label>
+      <div class="pad-tabs" id="padTabs">
+        <button type="button" class="pad-tab active" data-tab="aparencia">Aparência</button>
+        <button type="button" class="pad-tab" data-tab="conteudo">Conteúdo</button>
+        <button type="button" class="pad-tab" data-tab="avancado">Avançado</button>
       </div>
 
-      <div id="camposAnexar" style="display:none;">
-        <label class="f-label">Imagem do cabeçalho completo (banner)</label>
-        <div class="logo-preview" id="bannerPreview" style="height:56px;"><span>nenhuma imagem selecionada</span></div>
-        <input type="file" accept="image/*" id="bannerInput" class="f-input" style="padding:6px;">
+      <div class="pad-tab-panel active" id="padPanelAparencia">
+        <label class="f-label">Cabeçalho do documento</label>
+        <select class="f-input" id="headerMode">
+          <option value="nenhum">Nenhum (documento sem identidade visual)</option>
+          <option value="montar">Montar cabeçalho no sistema</option>
+          <option value="anexar">Anexar cabeçalho pronto (imagem)</option>
+        </select>
+
+        <div id="headerPreviewWrap" style="border-radius:8px; overflow:hidden; border:1px solid var(--line); margin-bottom:14px;"></div>
+
+        <div id="camposMontar">
+          <label class="f-label">Logo</label>
+          <div class="logo-preview" id="logoPreview"><span>nenhuma logo selecionada</span></div>
+          <input type="file" accept="image/*" id="clientLogoInput" class="f-input" style="padding:6px;">
+          <label class="f-label">Posição da logo</label>
+          <select class="f-input" id="headerLogoPos"><option value="left">Esquerda</option><option value="center">Centro</option></select>
+          <label class="f-label">Cor da tarja</label>
+          <input type="color" id="headerCor" value="#1a56db" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line-strong); margin-bottom:14px; background:var(--bg);">
+          <label class="f-check"><input type="checkbox" id="headerPontinhos" checked> Incluir pontinhos decorativos (estilo do exemplo do Agibank)</label>
+        </div>
+
+        <div id="camposAnexar" style="display:none;">
+          <label class="f-label">Imagem do cabeçalho completo (banner)</label>
+          <div class="logo-preview" id="bannerPreview" style="height:56px;"><span>nenhuma imagem selecionada</span></div>
+          <input type="file" accept="image/*" id="bannerInput" class="f-input" style="padding:6px;">
+        </div>
       </div>
 
-      <label class="f-check"><input type="checkbox" id="clientMargensPersonalizadas"> Usar margens personalizadas (senão, usa o padrão do sistema)</label>
-      <div class="f-row4">
-        <div><label>Superior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgTop" value="2.5"></div>
-        <div><label>Direita (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgRight" value="2.5"></div>
-        <div><label>Inferior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgBottom" value="2.5"></div>
-        <div><label>Esquerda (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgLeft" value="3"></div>
+      <div class="pad-tab-panel" id="padPanelConteudo" style="display:none;">
+        <label class="f-check"><input type="checkbox" id="rodapeAtivo"> Incluir rodapé de texto (ex.: telefone, site, CNPJ)</label>
+        <input class="f-input" id="rodapeTexto" placeholder="ex.: (11) 0000-0000 · www.empresa.com.br · Empresa S.A · CNPJ 00.000.000/0001-00">
+        <label class="f-check"><input type="checkbox" id="marcaDaguaAtiva"> Incluir marca d'água</label>
+        <input class="f-input" id="marcaDaguaTexto" placeholder="ex.: MINUTA, CONFIDENCIAL, nome do cliente">
+        <div class="ev-body" style="margin-top:-6px; margin-bottom:14px; color:var(--ink-faint);">A marca d'água aparece na pré-visualização e no arquivo impresso/PDF; no .doc baixado, por limitação do formato usado, aparece como texto no cabeçalho, sem a rotação diagonal.</div>
       </div>
 
-      <button class="btn-generate" id="saveClientBtn" style="width:100%; justify-content:center;">Salvar padrão</button>
+      <div class="pad-tab-panel" id="padPanelAvancado" style="display:none;">
+        <label class="f-check"><input type="checkbox" id="clientMargensPersonalizadas"> Usar margens personalizadas (senão, usa o padrão do sistema)</label>
+        <div class="f-row4">
+          <div><label>Superior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgTop" value="2.5"></div>
+          <div><label>Direita (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgRight" value="2.5"></div>
+          <div><label>Inferior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgBottom" value="2.5"></div>
+          <div><label>Esquerda (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgLeft" value="3"></div>
+        </div>
+        <label class="f-label">Fonte</label>
+        <select class="f-input" id="fonteSelect">${FONTES_DISPONIVEIS.map(f=>`<option value="${f}">${f}</option>`).join('')}</select>
+        <div class="f-row4" style="grid-template-columns:1fr 1fr;">
+          <div><label>Tamanho (pt)</label><select class="f-input" style="margin-bottom:0" id="fonteTamanho"><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option></select></div>
+          <div><label>Espaçamento entre linhas</label><select class="f-input" style="margin-bottom:0" id="espacamentoSelect"><option value="1">Simples</option><option value="1.15">1,15</option><option value="1.5">1,5</option><option value="2">Duplo</option></select></div>
+        </div>
+        <label class="f-label" style="margin-top:14px;">Numeração de página</label>
+        <select class="f-input" id="numeracaoSelect">${Object.entries(NUMERACAO_OPCOES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+        <div class="ev-body" style="margin-top:-6px; color:var(--ink-faint);">No .doc baixado, a numeração real (\"1 de N\") depende da paginação do Word ao abrir o arquivo; na pré-visualização aqui é só ilustrativa.</div>
+      </div>
+
+      <button class="btn-generate" id="saveClientBtn" style="width:100%; justify-content:center; margin-top:14px;">Salvar padrão</button>
     </div>
     <div>
       <div id="docPreviewPanel" style="margin-bottom:22px;"></div>
@@ -1326,6 +1373,14 @@ function renderPadroes(){
       headerCor: document.getElementById('headerCor').value,
       headerPontinhos: document.getElementById('headerPontinhos').checked,
       headerBannerDataUrl: bannerDataUrlTemp,
+      rodapeAtivo: document.getElementById('rodapeAtivo').checked,
+      rodapeTexto: document.getElementById('rodapeTexto').value,
+      marcaDaguaAtiva: document.getElementById('marcaDaguaAtiva').checked,
+      marcaDaguaTexto: document.getElementById('marcaDaguaTexto').value,
+      fonte: document.getElementById('fonteSelect').value,
+      fonteTamanho: parseInt(document.getElementById('fonteTamanho').value) || FONTE_PADRAO.tamanho,
+      espacamento: parseFloat(document.getElementById('espacamentoSelect').value) || FONTE_PADRAO.espacamento,
+      numeracaoPagina: document.getElementById('numeracaoSelect').value,
     };
   }
   function margensAtuais(){
@@ -1351,10 +1406,12 @@ function renderPadroes(){
     document.getElementById('docPreviewPanel').innerHTML = `
       <div class="preview-label">prévia em escala real do modelo de documento (folha A4, 21 cm), com conteúdo de exemplo</div>
       <div class="page-preview-wrap">
-        <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm;">
+        <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm; font-family:'${cfg.fonte}', serif; font-size:${cfg.fonteTamanho}pt; line-height:${cfg.espacamento};">
+          ${marcaDaguaHtml(cfg)}
           ${cabecalhoSangrado}
           <div class="doc-court">Excelentíssimo senhor doutor juiz de direito</div>
           ${secoesHtml}
+          ${rodapePreviewHtml(cfg)}
         </div>
       </div>
       <div class="callout" style="margin-top:12px"><b>Sobre esta prévia.</b> O cabeçalho e as margens são exatamente os configurados ao lado. O texto das seções é de exemplo: as seções fixas já são as mesmas do documento final, só o resumo do caso e a seção "Regularidade dos descontos impugnados" mudam de acordo com a petição real de cada processo.</div>`;
@@ -1369,6 +1426,15 @@ function renderPadroes(){
     document.getElementById('camposAnexar').style.display = modo==='anexar' ? 'block' : 'none';
     atualizarPreview();
   }
+  function alternarAba(nome){
+    document.querySelectorAll('.pad-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===nome));
+    document.getElementById('padPanelAparencia').style.display = nome==='aparencia' ? 'block' : 'none';
+    document.getElementById('padPanelConteudo').style.display = nome==='conteudo' ? 'block' : 'none';
+    document.getElementById('padPanelAvancado').style.display = nome==='avancado' ? 'block' : 'none';
+  }
+  document.querySelectorAll('.pad-tab').forEach(t=>{
+    t.addEventListener('click', ()=>alternarAba(t.dataset.tab));
+  });
 
   document.getElementById('headerMode').addEventListener('change', alternarCampos);
   document.getElementById('headerLogoPos').addEventListener('change', atualizarPreview);
@@ -1378,6 +1444,14 @@ function renderPadroes(){
   ['mgTop','mgRight','mgBottom','mgLeft'].forEach(id=>{
     document.getElementById(id).addEventListener('input', atualizarPreview);
   });
+  document.getElementById('rodapeAtivo').addEventListener('change', atualizarPreview);
+  document.getElementById('rodapeTexto').addEventListener('input', atualizarPreview);
+  document.getElementById('marcaDaguaAtiva').addEventListener('change', atualizarPreview);
+  document.getElementById('marcaDaguaTexto').addEventListener('input', atualizarPreview);
+  document.getElementById('fonteSelect').addEventListener('change', atualizarPreview);
+  document.getElementById('fonteTamanho').addEventListener('change', atualizarPreview);
+  document.getElementById('espacamentoSelect').addEventListener('change', atualizarPreview);
+  document.getElementById('numeracaoSelect').addEventListener('change', atualizarPreview);
 
   document.getElementById('clientLogoInput').addEventListener('change', e=>{
     const file = e.target.files[0];
@@ -1448,11 +1522,20 @@ function renderPadroes(){
       document.getElementById('mgRight').value = cl.margens.right;
       document.getElementById('mgBottom').value = cl.margens.bottom;
       document.getElementById('mgLeft').value = cl.margens.left;
+      document.getElementById('rodapeAtivo').checked = !!cl.rodapeAtivo;
+      document.getElementById('rodapeTexto').value = cl.rodapeTexto || '';
+      document.getElementById('marcaDaguaAtiva').checked = !!cl.marcaDaguaAtiva;
+      document.getElementById('marcaDaguaTexto').value = cl.marcaDaguaTexto || '';
+      document.getElementById('fonteSelect').value = cl.fonte || FONTE_PADRAO.familia;
+      document.getElementById('fonteTamanho').value = cl.fonteTamanho || FONTE_PADRAO.tamanho;
+      document.getElementById('espacamentoSelect').value = cl.espacamento || FONTE_PADRAO.espacamento;
+      document.getElementById('numeracaoSelect').value = cl.numeracaoPagina || 'nenhuma';
       logoDataUrlTemp = cl.logoDataUrl || null;
       bannerDataUrlTemp = cl.headerBannerDataUrl || null;
       document.getElementById('logoPreview').innerHTML = logoDataUrlTemp ? `<img src="${logoDataUrlTemp}">` : '<span>nenhuma logo selecionada</span>';
       document.getElementById('bannerPreview').innerHTML = bannerDataUrlTemp ? `<img src="${bannerDataUrlTemp}">` : '<span>nenhuma imagem selecionada</span>';
       alternarCampos();
+      alternarAba('aparencia');
       window.scrollTo({top:0, behavior:'smooth'});
     });
   });
@@ -1462,6 +1545,29 @@ function renderPadroes(){
       renderPadroes();
     });
   });
+}
+
+// Marca d'água (só na pré-visualização em tela/impressão; o .doc exportado usa uma versão
+// sem rotação no cabeçalho, ver nota na aba Conteúdo, porque o motor de HTML-como-.doc do
+// Word não renderiza de forma confiável um texto rotacionado via CSS transform).
+function marcaDaguaHtml(cfg){
+  if(!cfg.marcaDaguaAtiva || !cfg.marcaDaguaTexto) return '';
+  return `<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; overflow:hidden; pointer-events:none; z-index:0;">
+    <span style="transform:rotate(-30deg); font-size:64px; font-weight:700; color:rgba(0,0,0,.07); white-space:nowrap; font-family:var(--serif);">${cfg.marcaDaguaTexto.replace(/</g,'&lt;')}</span>
+  </div>`;
+}
+
+// Rodapé de texto + indicador ilustrativo de numeração de página, na pré-visualização.
+function rodapePreviewHtml(cfg){
+  if(!cfg.rodapeAtivo && (!cfg.numeracaoPagina || cfg.numeracaoPagina==='nenhuma')) return '';
+  const alinhamento = { 'rodape-esquerda':'left', 'rodape-centro':'center', 'rodape-direita':'right' }[cfg.numeracaoPagina] || 'center';
+  const numeracaoHtml = (cfg.numeracaoPagina && cfg.numeracaoPagina!=='nenhuma' && cfg.numeracaoPagina!=='cabecalho-direita')
+    ? `<div style="text-align:${alinhamento}; font-size:10px; color:var(--ink-faint); margin-top:4px;">1 de N (ilustrativo — a numeração real segue a paginação do Word)</div>`
+    : '';
+  return `<div style="position:relative; z-index:1; margin-top:28px; padding-top:8px; border-top:1px solid var(--line); font-family:var(--mono); font-size:10px; color:var(--ink-faint); text-align:center;">
+    ${cfg.rodapeAtivo && cfg.rodapeTexto ? cfg.rodapeTexto.replace(/</g,'&lt;') : ''}
+    ${numeracaoHtml}
+  </div>`;
 }
 
 // Pré-visualização HTML do cabeçalho, usada tanto no formulário quanto no card do cliente.
@@ -1490,29 +1596,72 @@ function previewCabecalho(cfg, mini){
     </div>`;
 }
 
+// Cabeçalho/rodapé reais do Word (mso-element:header/footer), usando os campos de campo
+// " PAGE "/" NUMPAGES " para numeração automática — só funcionam quando o arquivo é aberto
+// no Microsoft Word de verdade (é o motor dele que resolve os campos), não em outros
+// leitores de .doc/.html.
+function camposNumeracaoWord(){
+  return `página <span style='mso-field-code:" PAGE "'></span> de <span style='mso-field-code:" NUMPAGES "'></span>`;
+}
+function headerFooterWordHtml(cfg){
+  const numeracao = cfg.numeracaoPagina || 'nenhuma';
+  const alinhamentoRodape = { 'rodape-esquerda':'left', 'rodape-centro':'center', 'rodape-direita':'right' }[numeracao] || 'center';
+  const numeroNoRodape = ['rodape-esquerda','rodape-centro','rodape-direita'].includes(numeracao);
+  const numeroNoCabecalho = numeracao === 'cabecalho-direita';
+
+  const headerLinhas = [];
+  if(cfg.marcaDaguaAtiva && cfg.marcaDaguaTexto){
+    headerLinhas.push(`<p style='text-align:center; color:#cccccc; font-size:34pt; font-weight:bold; margin:0;'>${cfg.marcaDaguaTexto.replace(/</g,'&lt;')}</p>`);
+  }
+  if(numeroNoCabecalho){
+    headerLinhas.push(`<p style='text-align:right; font-size:9pt; color:#444; margin:0;'>${camposNumeracaoWord()}</p>`);
+  }
+  const rodapeLinhas = [];
+  if(cfg.rodapeAtivo && cfg.rodapeTexto){
+    rodapeLinhas.push(`<span>${cfg.rodapeTexto.replace(/</g,'&lt;')}</span>`);
+  }
+  if(numeroNoRodape){
+    rodapeLinhas.push(`<span>${cfg.rodapeAtivo && cfg.rodapeTexto ? ' — ' : ''}${camposNumeracaoWord()}</span>`);
+  }
+
+  const headerHtml = `<div style='mso-element:header' id=h1><p style='margin:0;'>${headerLinhas.join('')}</p></div>`;
+  const footerHtml = `<div style='mso-element:footer' id=f1><p style='text-align:${alinhamentoRodape}; font-size:9pt; color:#444; margin:0;'>${rodapeLinhas.join('')}</p></div>`;
+  return { headerHtml, footerHtml, temHeader: headerLinhas.length>0, temFooter: rodapeLinhas.length>0 };
+}
+
 function buildWordHtml(c){
   const d = c.contestacao;
   const f = c.fields;
   const cliente = clientes.find(cl => cl.id === c.clienteId);
   const margens = (cliente && cliente.margensPersonalizadas) ? cliente.margens : MARGEM_PADRAO;
   const cabecalhoHtml = cliente ? previewCabecalho(cliente, false) : '';
+  const cfgVisual = cliente || {};
+  const fonteFamilia = cfgVisual.fonte || FONTE_PADRAO.familia;
+  const fonteTamanho = cfgVisual.fonteTamanho || FONTE_PADRAO.tamanho;
+  const espacamento = cfgVisual.espacamento || FONTE_PADRAO.espacamento;
   const cnj = (f.numeroCNJ && !/não localizado/i.test(f.numeroCNJ)) ? f.numeroCNJ : 'número não identificado automaticamente, conferir antes do protocolo';
   const secoesHtml = d.secoes.map((s, i) =>
     `<h2>${i+1}. ${s.t}</h2><p>${s.b.split('\n\n').join('</p><p>')}</p>`
   ).join('\n');
+  const { headerHtml, footerHtml, temHeader, temFooter } = headerFooterWordHtml(cfgVisual);
   return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head><meta charset='utf-8'><title>Contestação</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
 <style>
-  @page Section1 { size: 21cm 29.7cm; margin: ${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm; }
+  @page Section1 {
+    size: 21cm 29.7cm; margin: ${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm;
+    ${temHeader ? 'mso-header: h1;' : ''} ${temFooter ? 'mso-footer: f1;' : ''}
+  }
   div.Section1 { page: Section1; }
-  body{font-family:"Times New Roman", serif; font-size:12pt; line-height:1.5; color:#000;}
-  h1{text-align:center; font-size:12pt; text-transform:uppercase; margin-bottom:22pt;}
-  h2{font-size:12pt; text-transform:uppercase; margin-top:18pt; margin-bottom:6pt;}
+  body{font-family:"${fonteFamilia}", serif; font-size:${fonteTamanho}pt; line-height:${espacamento}; color:#000;}
+  h1{text-align:center; font-size:${fonteTamanho}pt; text-transform:uppercase; margin-bottom:22pt;}
+  h2{font-size:${fonteTamanho}pt; text-transform:uppercase; margin-top:18pt; margin-bottom:6pt;}
   p{text-align:justify; margin-bottom:10pt;}
   .meta{font-size:10pt; color:#444; margin-bottom:18pt; font-family:Arial, sans-serif;}
 </style></head>
 <body>
+${headerHtml}
+${footerHtml}
 ${cabecalhoHtml}
 <div class="Section1" style="padding:0 ${margens.right}cm 0 ${margens.left}cm;">
   <p class="meta" style="margin-top:16pt;">Processo ${cnj}. Minuta gerada em ${new Date(d.generatedAt).toLocaleString('pt-BR')}, seção "Regularidade dos descontos" ${d.source==='ai' ? 'adaptada com apoio de IA' : 'a partir do modelo padrão'}, demais seções a partir do modelo padrão validado.${cliente ? ` Formatação aplicada: padrão ${cliente.nome}.` : ''} Revisão de advogado obrigatória antes do protocolo.</p>
@@ -2172,6 +2321,10 @@ function renderContestacaoBlock(c){
   const cabecalhoSangrado = cabecalhoHtml
     ? `<div style="margin:-${margens.top}cm -${margens.right}cm 16px -${margens.left}cm;">${cabecalhoHtml}</div>`
     : '';
+  const cfgVisual = cliente || {};
+  const fonteFamilia = cfgVisual.fonte || FONTE_PADRAO.familia;
+  const fonteTamanho = cfgVisual.fonteTamanho || FONTE_PADRAO.tamanho;
+  const espacamento = cfgVisual.espacamento || FONTE_PADRAO.espacamento;
   return `
     <div class="view-head" style="margin-top:38px">
       <div class="kicker">Minuta de contestação, modelo padrão validado</div>
@@ -2199,10 +2352,12 @@ function renderContestacaoBlock(c){
       <div>
         <div class="preview-label">pré-visualização em escala real, folha A4 (21 x 29,7 cm), margens ${cliente && cliente.margensPersonalizadas ? 'personalizadas do cliente' : 'padrão do sistema'}</div>
         <div class="page-preview-wrap">
-          <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm;">
+          <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm; font-family:'${fonteFamilia}', serif; font-size:${fonteTamanho}pt; line-height:${espacamento};">
+            ${marcaDaguaHtml(cfgVisual)}
             ${cabecalhoSangrado}
             <div class="doc-court">Excelentíssimo senhor doutor juiz de direito</div>
             ${secoesHtml}
+            ${rodapePreviewHtml(cfgVisual)}
           </div>
         </div>
       </div>
