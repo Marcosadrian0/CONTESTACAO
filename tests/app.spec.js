@@ -2,7 +2,7 @@
 //
 // Cobre o que antes era validado manualmente durante o desenvolvimento: login e troca de
 // senha obrigatória, administração de usuários, segregação de acesso por operador, geração
-// de minuta com prazo/revisão obrigatória/desfecho, e responsividade básica. Roda contra o
+// de minuta com prazo/exclusão de processo/reabertura via Análises, e responsividade básica. Roda contra o
 // próprio index.html, sem backend real (pdf.js e mammoth.js são substituídos por um stub —
 // ver stubarBibliotecas abaixo — para o teste não depender de CDN externo nem gerar PDF/DOCX
 // de verdade; a extração em si não é o que está sendo testado aqui).
@@ -248,14 +248,21 @@ test.describe('geração de contestação', () => {
     await expect(page.locator('#prazoResultado')).toContainText('d úteis');
   });
 
-  test('registrar desfecho alimenta a taxa de êxito real na aba Análises', async ({ page }) => {
+  test('clicar em uma linha de Análises reabre a minuta gerada daquele processo', async ({ page }) => {
     await gerarContestacao(page);
-    await page.selectOption('#desfechoSelect', 'improcedente');
-
     await page.click('[data-view="analises"]');
     await expect(page.locator('#analisesBody')).toContainText('marcos.oliveira');
-    await expect(page.locator('#analisesBody')).toContainText('taxa de êxito real');
-    await expect(page.locator('#analisesBody')).toContainText('100%');
+    await page.click('.case-row[data-case-id]');
+    await expect(page.locator('#view-geracao')).toHaveClass(/active/);
+    await expect(page.locator('#downloadDocBtn')).toBeVisible();
+  });
+
+  test('excluir processo remove da fila e das análises', async ({ page }) => {
+    await gerarContestacao(page);
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('#excluirProcessoBtn');
+    await expect(page.locator('#view-fila')).toHaveClass(/active/);
+    await expect(page.locator('#filaBody')).toContainText('Nenhum processo carregado');
   });
 
   test('nova versão da minuta reseta o passo "arquivo baixado" do indicador de progresso', async ({ page }) => {

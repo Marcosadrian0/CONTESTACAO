@@ -477,8 +477,6 @@ html[data-theme="dark"] .auth-screen{
   <div class="tabs" id="tabs">
     <div class="tab active" data-view="fila">Fila</div>
     <div class="tab" data-view="geracao">Geração</div>
-    <div class="tab" data-view="similares" title="Protótipo: dados ilustrativos, não conectado a processos reais">Casos similares<span class="tab-mock-dot"></span></div>
-    <div class="tab" data-view="qualidade" title="Protótipo: dados ilustrativos, não conectado a processos reais">Portão de qualidade<span class="tab-mock-dot"></span></div>
     <div class="tab" data-view="analises">Análises</div>
     <div class="tab" data-view="padroes">Padrões por cliente</div>
     <div class="tab" data-view="admin" id="tabAdmin" style="display:none">Admin</div>
@@ -488,7 +486,7 @@ html[data-theme="dark"] .auth-screen{
       <button id="btnLight" class="on" title="Tema claro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
       <button id="btnDark" title="Tema escuro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.5A8.5 8.5 0 1 1 11.5 3 7 7 0 0 0 21 12.5Z"/></svg></button>
     </div>
-    <div class="env-badge"><span class="env-dot"></span>fila zerada, pronta para testes</div>
+    <div class="env-badge"><span class="env-dot"></span>dados salvos neste navegador</div>
     <div class="user-chip" id="userChip">
       <span id="userChipName"></span>
       <span class="role" id="userChipRole"></span>
@@ -526,55 +524,6 @@ html[data-theme="dark"] .auth-screen{
     <div id="geracaoBody"></div>
   </section>
 
-  <!-- ============ CASOS SIMILARES (conceito) ============ -->
-  <section class="view" id="view-similares">
-    <div class="view-head">
-      <div class="kicker">Precedentes internos</div>
-      <h1>O que aconteceu da última vez que isso caiu na mesa</h1>
-      <p>Processos internos com a mesma causa raiz, ordenados por semelhança factual, com o desfecho real de cada um.</p>
-    </div>
-    <div class="mock-banner"><span class="ico">⚠</span><div><b>Tela de protótipo — dados ilustrativos.</b><span>Os números e processos abaixo são fictícios, fixos no código, e não vêm dos processos reais carregados no sistema. Mostra a visão de produto completo, que depende de um histórico de processos ainda não conectado.</span></div></div>
-
-    <div class="sim-grid">
-      <div class="sim-card"><div class="n">231</div><div class="l">processos internos no tema mais recorrente do mês</div></div>
-      <div class="sim-card"><div class="n">78%</div><div class="l">taxa de êxito da tese mais usada no tema</div></div>
-      <div class="sim-card"><div class="n">6</div><div class="l">casos com perfil quase idêntico ao caso em análise</div></div>
-    </div>
-
-    <div class="case-list">
-      <div class="case-row head"><div>Processo</div><div>Semelhança</div><div>Correspond.</div><div>Tese usada</div><div>Desfecho</div></div>
-      <div class="case-row"><div class="case-id">0039012-81</div><div class="case-sim">Mesmo tema, autenticação registrada<span class="p">3 operações, valor médio</span></div><div class="match-bar"><div class="match-fill" style="width:96%"></div></div><div style="font-size:12px">Autenticação forte</div><div><span class="outcome win">Improcedente</span></div></div>
-      <div class="case-row"><div class="case-id">0027744-10</div><div class="case-sim">Mesmo padrão factual<span class="p">2 operações, valor baixo</span></div><div class="match-bar"><div class="match-fill" style="width:91%"></div></div><div style="font-size:12px">Autenticação forte</div><div><span class="outcome win">Improcedente</span></div></div>
-      <div class="case-row"><div class="case-id">0015599-27</div><div class="case-sim">Variação sem autenticação<span class="p">1 operação, valor baixo</span></div><div class="match-bar"><div class="match-fill" style="width:74%"></div></div><div style="font-size:12px">Falha de comunicação</div><div><span class="outcome settle">Acordo</span></div></div>
-      <div class="case-row"><div class="case-id">0008821-56</div><div class="case-sim">Cliente reincidente<span class="p">4 operações, valor alto</span></div><div class="match-bar"><div class="match-fill" style="width:69%"></div></div><div style="font-size:12px">Ausência de defeito</div><div><span class="outcome loss">Procedente</span></div></div>
-    </div>
-  </section>
-
-  <!-- ============ PORTÃO DE QUALIDADE (conceito) ============ -->
-  <section class="view" id="view-qualidade">
-    <div class="view-head">
-      <div class="kicker">Antes do advogado ver a peça</div>
-      <h1>O que uma máquina confere melhor que uma pessoa cansada</h1>
-      <p>Prazo, documento, contradição entre teses e existência real da citação, nenhum desses itens deveria depender só da atenção do advogado no fim de um dia longo.</p>
-    </div>
-    <div class="mock-banner"><span class="ico">⚠</span><div><b>Tela de protótipo — dados ilustrativos.</b><span>Os itens do checklist abaixo são fixos no código, não são calculados a partir da minuta gerada na aba Geração. Mostra a visão de produto completo, que rodaria sobre uma minuta já gerada com teses e documentos anexados.</span></div></div>
-
-    <div class="qa-shell">
-      <div class="gate-list">
-        <div class="gate"><div class="gate-icon pass">✓</div><div><div class="gate-title">Prazo processual</div><div class="gate-desc">Dentro do prazo de resposta identificado na petição.</div></div></div>
-        <div class="gate"><div class="gate-icon pass">✓</div><div><div class="gate-title">Checklist documental mínimo</div><div class="gate-desc">Documentos exigidos pelo tema localizados e anexados.</div></div></div>
-        <div class="gate"><div class="gate-icon pass">✓</div><div><div class="gate-title">Citações verificadas</div><div class="gate-desc">Toda evidência citada na minuta existe na base e foi conferida automaticamente.</div></div></div>
-        <div class="gate"><div class="gate-icon pass">✓</div><div><div class="gate-title">Teses sem contradição interna</div><div class="gate-desc">Nenhuma tese selecionada nega uma premissa usada por outra tese na mesma minuta.</div></div></div>
-        <div class="gate"><div class="gate-icon warn">!</div><div><div class="gate-title">Histórico de relacionamento</div><div class="gate-desc">Consulta a sistemas de CRM ainda pendente. Não bloqueia a geração, mas fica sinalizada.</div></div></div>
-      </div>
-      <div class="qa-summary">
-        <div class="qa-ring"><span>84%</span></div>
-        <h4>Pronta para revisão</h4>
-        <p>4 de 5 verificações concluídas sem ressalva. A pendência segue visível ao advogado, mas não impede o envio para revisão.</p>
-      </div>
-    </div>
-  </section>
-
   <!-- ============ ANÁLISES (real, roda sobre as contestações geradas nesta sessão) ============ -->
   <section class="view" id="view-analises">
     <div class="view-head">
@@ -609,7 +558,7 @@ html[data-theme="dark"] .auth-screen{
 
 <footer>
   <div>motor de contestações, protótipo funcional de ingestão</div>
-  <div>upload real ativo / demais painéis em visão conceitual</div>
+  <div>upload real ativo / dados salvos localmente neste navegador</div>
 </footer>
 
 </div>
@@ -914,6 +863,41 @@ let clienteSeq = 1;
 const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
 let filaFiltro = 'todos'; // 'todos' | 'meus' — só tem efeito para papel admin, operador sempre vê só os seus
 
+// Persistência local: fila, análises e padrões de cliente ficam salvos no navegador
+// (localStorage), sobrevivendo a um F5. Isto é por navegador, não um banco compartilhado
+// como o de usuários (api/users.js) — se o mesmo operador abrir em outra máquina, não verá
+// os mesmos processos. Guardado contra localStorage cheio/indisponível: nunca deixa o
+// sistema quebrar por falha ao salvar.
+const ESTADO_KEY = 'mc_estado_v1';
+function salvarEstado(){
+  try{
+    localStorage.setItem(ESTADO_KEY, JSON.stringify({ cases, analyses, idSeq, clientes, clienteSeq }));
+  }catch(e){
+    console.warn('Não foi possível salvar o estado local (localStorage cheio ou indisponível).', e);
+  }
+}
+function restaurarEstado(){
+  try{
+    const raw = localStorage.getItem(ESTADO_KEY);
+    if(!raw) return;
+    const parsed = JSON.parse(raw);
+    if(Array.isArray(parsed.cases)) cases = parsed.cases;
+    if(Array.isArray(parsed.analyses)) analyses = parsed.analyses;
+    if(typeof parsed.idSeq === 'number') idSeq = parsed.idSeq;
+    if(Array.isArray(parsed.clientes)) clientes = parsed.clientes;
+    if(typeof parsed.clienteSeq === 'number') clienteSeq = parsed.clienteSeq;
+    cases.forEach(c=>{
+      if(c.status==='processando'){
+        c.status = 'erro';
+        c.error = 'Leitura interrompida (página foi atualizada durante o processamento). Envie o arquivo novamente.';
+      }
+      if(c.genStatus==='gerando') c.genStatus = c.contestacao ? 'pronto' : null;
+    });
+  }catch(e){
+    console.warn('Não foi possível restaurar o estado local salvo.', e);
+  }
+}
+
 // Contador de uso da API de IA nesta sessão. Guarda só o que a própria resposta da
 // Anthropic informa (tokens de entrada/saída) — não estima custo em R$/US$ aqui, porque
 // isso exigiria acompanhar a tabela de preço vigente, que muda e não deve ficar
@@ -958,28 +942,30 @@ const TEMA_PRODUTOS = {
 };
 
 // Blocos fixos: mesmo texto nas 3 peças de referência, não variam por tema. Nunca passam por IA.
-// A citação de jurisprudência em "biometria" (REsp 2.159.442/PR, STJ) foi pesquisada e
-// verificada em múltiplas fontes (incluindo o site oficial do STJ) em 15/09/2026. Jurisprudência
-// muda: reconferir a citação na fonte oficial (stj.jus.br) periodicamente e sempre antes de um
-// protocolo real, não presumir que continua válida indefinidamente.
+// Citações de jurisprudência pesquisadas e cruzadas com contestações reais (fornecidas pelo
+// cliente) e com fontes independentes (incluindo o site oficial do STJ) em 15-16/09/2026.
+// Jurisprudência muda: reconferir cada citação na fonte oficial (stj.jus.br) periodicamente e
+// sempre antes de um protocolo real, não presumir que continua válida indefinidamente.
+//   - "biometria": REsp 2.159.442/PR (STJ, 3ª Turma, Rel. Min. Nancy Andrighi).
+//   - "meritoDanosMorais": AgInt no AREsp 2.157.547/SC (STJ, 4ª Turma) e AgInt nos EDcl no
+//     AREsp 1.669.683/SP (STJ, 3ª Turma).
+// ALERTA (16/09/2026): o STJ afetou ao rito dos repetitivos o Tema 1.435 (2ª Seção, Rel. Min.
+// Isabel Gallotti, REsps 2.232.320/SC, 2.219.822/MG, 2.219.864/MG e 2.232.327/SC), que discute
+// se o desconto indevido em benefício previdenciário gera dano moral presumido (in re ipsa) ou
+// exige prova concreta do prejuízo — questão diretamente relevante para a tese abaixo. Há
+// determinação de suspensão nacional dos processos sobre o tema. Reconferir o andamento do
+// Tema 1.435 no site do STJ antes de usar esta tese em um caso real; um julgamento contrário
+// pode exigir revisão deste bloco.
 const BLOCOS_FIXOS = {
   provaContratacao: 'A instituição ré demonstra, a seguir, as etapas percorridas pela parte autora até o recebimento do crédito ou a formalização do produto: procura ou consulta de margem, confirmação da proposta, envio de documento de identificação, reconhecimento biométrico facial e transferência do valor ou formalização do produto, conforme documentos anexados a esta defesa.',
   biometria: 'A contratação foi formalizada por meio de assinatura eletrônica avançada, nos termos do art. 4º, II, da Lei nº 14.063/2020, mediante autenticação por biometria facial com verificação de vivacidade (liveness) e comparação com o documento de identificação apresentado. Tal forma de autenticação encontra respaldo no art. 10, § 2º, da MP 2.200-2/2001 e no art. 107 do Código Civil, e vem sendo reconhecida pela jurisprudência do Superior Tribunal de Justiça: no julgamento do REsp 2.159.442/PR (Terceira Turma, Rel. Min. Nancy Andrighi, julgado em 29/11/2024), a Corte assentou que a ausência de certificação pelo sistema ICP-Brasil não invalida, por si só, a assinatura eletrônica avançada, sob pena de "excessivo formalismo diante da nova realidade do mundo virtual", sendo válida a autenticação por outros meios idôneos aceitos pelas partes.',
   presuncaoAssinatura: 'Nos termos do art. 411, III, do Código de Processo Civil, presume-se autêntico todo documento não impugnado pela parte contra quem foi produzido. O art. 428, I, do mesmo diploma dispõe que somente a impugnação expressa da autenticidade afasta a fé do documento particular. À míngua de impugnação específica da parte autora quanto à assinatura eletrônica aposta no contrato ora discutido, ela deve ser presumida autêntica.',
   onusProva: 'Embora a relação discutida possa estar submetida ao Código de Defesa do Consumidor, a inversão do ônus da prova não decorre de forma automática. Nos termos do art. 6º, VIII, do CDC, sua aplicação depende da verossimilhança das alegações ou da hipossuficiência do consumidor. No presente caso, a parte autora limita-se a negar a contratação sem apresentar elementos mínimos que corroborem a alegação, ao passo que a instituição financeira ré demonstra, de forma documentada, a regularidade da operação.',
   meritoRepeticao: 'Comprovada a regularidade da contratação, a repetição do indébito não é cabível, por ausência de pagamento indevido. Subsidiariamente, em atenção ao princípio da eventualidade, a devolução em dobro esbarra na hipótese de engano justificável (art. 42, parágrafo único, do CDC), e, caso superado esse argumento, deve observar a modulação temporal fixada pelo Superior Tribunal de Justiça no EAREsp 600.663/RS, aplicando-se a dobra somente aos descontos posteriores a 30 de março de 2021, com correção monetária incidente sobre cada parcela a partir da respectiva data (Súmula 43 do STJ).',
-  meritoDanosMorais: 'A ocorrência de descontos eventualmente declarados indevidos não configura, por si só, dano moral in re ipsa. A jurisprudência do Superior Tribunal de Justiça exige a comprovação de gravidade além do mero dissabor, aborrecimento ou transtorno do cotidiano para que se configure o dano moral indenizável, o que não se verifica na petição inicial.',
+  meritoDanosMorais: 'A ocorrência de descontos eventualmente declarados indevidos não configura, por si só, dano moral in re ipsa. A jurisprudência do Superior Tribunal de Justiça exige a comprovação de gravidade além do mero dissabor, aborrecimento ou transtorno do cotidiano para que se configure o dano moral indenizável, o que não se verifica na petição inicial. Nesse sentido: AgInt no AREsp n. 2.157.547/SC (Quarta Turma, Rel. Min. Raul Araújo, julgado em 12/12/2022) e AgInt nos EDcl no AREsp n. 1.669.683/SP (Terceira Turma, Rel. Min. Marco Aurélio Bellizze, julgado em 23/11/2020), ambos no sentido de que o desconto questionado, isoladamente e sem prova de repercussão concreta na esfera extrapatrimonial da parte autora, não gera dever de indenizar.',
   compensacao: 'Nos termos dos arts. 182 e 884 do Código Civil, e subsidiariamente do art. 368 do mesmo diploma, os valores efetivamente transferidos à parte autora em razão da contratação impugnada, incluindo eventual valor liberado em operação de refinanciamento, devem ser deduzidos de qualquer condenação, sob pena de enriquecimento sem causa.',
   apuracaoIndebito: 'Caso reconhecida a existência de indébito, a base de cálculo da eventual dobra corresponde à diferença entre o total descontado e o valor efetivamente recebido pela parte autora, e não ao total dos descontos. A título de exemplo, se a parte autora recebeu R$ 10.000,00 e sofreu descontos totais de R$ 15.000,00, a repetição em dobro correta é de R$ 10.000,00 (excesso de R$ 5.000,00, duplicado), e não R$ 20.000,00 (dobra sobre o total descontado).',
   consideracoesFinais: 'Diante do exposto, requer a instituição ré a total improcedência dos pedidos formulados na petição inicial, protestando por todos os meios de prova em direito admitidos, sem prejuízo de juntada posterior de documentos, e reiterando o requerimento de intimação exclusiva em nome do advogado indicado no preâmbulo desta peça.',
-};
-
-// Preliminares condicionais: situacionais, não dependem do tema. O analista marca as aplicáveis antes de gerar.
-const PRELIMINARES_OPCIONAIS = {
-  residencia: { label: 'Ausência de comprovante de residência válido', texto: 'A parte autora deixou de apresentar comprovante de residência atualizado em seu próprio nome, o que é indispensável para atestar, de forma idônea, sua residência e domicílio, nos termos dos arts. 319, II, do Código de Processo Civil e 1º da Lei 6.629/79, tornando duvidosa a aferição da competência territorial.' },
-  ilegitimidade: { label: 'Ilegitimidade passiva quanto a operações não individualizadas', texto: 'Preliminarmente, cumpre reconhecer a ilegitimidade passiva da instituição ré em relação às operações que não estejam individualizadas como de sua titularidade no histórico oficial de consignações (HISCON ou equivalente), sendo indispensável a identificação do número do contrato e da instituição financeira responsável para que se possa atribuir responsabilidade a este réu.' },
-  prescricao: { label: 'Prescrição trienal', texto: 'Ao postular a declaração de inexistência de relação jurídica com a instituição ré, a parte autora afasta a incidência do Código de Defesa do Consumidor quanto a esse pedido específico, sujeitando a pretensão de reparação civil ao prazo prescricional trienal do art. 206, § 3º, V, do Código Civil, contado da data de cada desconto impugnado.' },
-  interesseAgir: { label: 'Ausência de interesse de agir', texto: 'Não há nos autos comprovação de tentativa prévia de solução administrativa da controvérsia junto aos canais de atendimento da instituição ré (central de atendimento, ouvidoria ou Consumidor.gov.br), o que evidencia a ausência de interesse de agir, na modalidade necessidade, para o ajuizamento da presente demanda.' },
 };
 
 function textoTutela(){
@@ -991,15 +977,11 @@ function textoTutela(){
 function montarSecoes(c){
   const f = c.fields;
   const lib = TEMA_PRODUTOS[f.tema] || TEMA_PRODUTOS.default;
-  const extras = c.preliminaresExtras || {};
   const secoes = [];
 
   secoes.push({ t: 'Breve resumo da inicial', b: f.resumo });
 
   const itensPreliminar = [];
-  ['residencia','ilegitimidade','prescricao','interesseAgir'].forEach(k=>{
-    if(extras[k]) itensPreliminar.push(PRELIMINARES_OPCIONAIS[k].texto);
-  });
   if(f.pedeTutela) itensPreliminar.push(textoTutela());
   if(itensPreliminar.length){
     secoes.push({ t: 'Preliminares', b: itensPreliminar.join('\n\n') });
@@ -1022,9 +1004,9 @@ function montarSecoes(c){
 }
 
 // Monta uma minuta de exemplo (sem processo real carregado), usada só para pré-visualização
-// do modelo de documento na aba Padrões por cliente. Mostra as preliminares e a tutela juntas
-// para exibir a estrutura completa; os únicos trechos que variam por processo real (resumo e
-// regularidade dos descontos) aparecem com texto de espaço reservado, claramente identificado.
+// do modelo de documento na aba Padrões por cliente. Mostra a seção de tutela para exibir a
+// estrutura completa; os únicos trechos que variam por processo real (resumo e regularidade
+// dos descontos) aparecem com texto de espaço reservado, claramente identificado.
 function secoesExemploPreview(){
   const temaExemplo = 'Empréstimo consignado';
   return montarSecoes({
@@ -1034,7 +1016,6 @@ function secoesExemploPreview(){
       pedeTutela: true,
       regularidadeTexto: TEMA_PRODUTOS[temaExemplo].regularidade,
     },
-    preliminaresExtras: { residencia: true, ilegitimidade: true, prescricao: true, interesseAgir: true },
   });
 }
 
@@ -1086,6 +1067,7 @@ async function tryAiRegularidade(f, rawText, textoModelo){
 
 /* ---------------- padrões por cliente ---------------- */
 function renderPadroes(){
+  salvarEstado();
   const body = document.getElementById('padroesBody');
   const resumoModo = cl => cl.headerMode==='anexar' ? 'Cabeçalho anexado (imagem pronta)'
     : cl.headerMode==='montar' ? 'Cabeçalho montado no sistema' : 'Sem identidade visual';
@@ -1384,6 +1366,7 @@ function downloadWord(c){
   document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url), 4000);
   c.baixadoEm = new Date();
+  salvarEstado();
 }
 
 function printDoc(c){
@@ -1395,6 +1378,7 @@ function printDoc(c){
   w.focus();
   setTimeout(()=>w.print(), 300);
   c.baixadoEm = new Date();
+  salvarEstado();
 }
 
 // Sinal honesto de baixa confiança por campo: só marca quando o próprio extrator admitiu
@@ -1445,6 +1429,7 @@ async function generateContestacao(id){
 
   analyses.unshift({ caseId:c.id, name:c.name, tema:f.tema, score:quality.score, checks:quality.checks, source, generatedAt:c.contestacao.generatedAt, geradoPor:c.contestacao.geradoPor });
 
+  salvarEstado();
   renderGeracao(id);
 }
 
@@ -1583,6 +1568,48 @@ function prazoBadgeHtml(c){
   return `<span class="route-pill" style="color:${cor}; background:color-mix(in srgb, ${cor} 14%, transparent);" title="Prazo estimado, sem calendário de feriados forenses. Conferir no processo oficial."><i style="background:${cor}"></i>${texto}</span>`;
 }
 
+// Documentos de apoio (além da petição inicial): contratos, comprovantes, telas de sistema.
+// O conteúdo binário (blob) fica só em memória nesta aba, não é serializado para o
+// localStorage (inviabilizaria a persistência da fila inteira em pouco tempo de uso).
+// Sobrevive a uma nova renderização da mesma sessão, mas não a um F5 — só a metadata
+// (nome, tamanho, tipo) é salva junto do processo, o que já deixa claro para o operador
+// que aquele documento foi anexado em algum momento.
+const documentBlobs = {};
+let docApoioSeq = 1;
+
+function anexarDocumentosApoio(c, fileList){
+  if(!c.documentosApoio) c.documentosApoio = [];
+  Array.from(fileList || []).forEach(file=>{
+    const docId = 'doc' + (docApoioSeq++);
+    documentBlobs[docId] = URL.createObjectURL(file);
+    c.documentosApoio.push({ id: docId, nome: file.name, tamanho: file.size, tipo: file.type || 'arquivo' });
+  });
+  salvarEstado();
+}
+
+function removerDocumentoApoio(c, docId){
+  if(!c.documentosApoio) return;
+  c.documentosApoio = c.documentosApoio.filter(d=>d.id!==docId);
+  if(documentBlobs[docId]){ URL.revokeObjectURL(documentBlobs[docId]); delete documentBlobs[docId]; }
+  salvarEstado();
+}
+
+function documentosApoioListHtml(c){
+  const docs = c.documentosApoio || [];
+  if(!docs.length) return '<span style="color:var(--ink-faint); font-size:12px;">nenhum documento de apoio anexado ainda</span>';
+  return docs.map(d=>{
+    const url = documentBlobs[d.id];
+    const tamanhoKb = Math.round((d.tamanho||0)/1024);
+    const link = url
+      ? `<a href="${url}" target="_blank" rel="noopener" style="color:var(--cyan);">${d.nome}</a>`
+      : `<span title="Anexado em uma sessão anterior; reanexe para reabrir">${d.nome} <span style="color:var(--amber);">(reanexar para abrir)</span></span>`;
+    return `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0; font-size:12.5px;">
+      <span>${link}<span style="color:var(--ink-faint);"> · ${tamanhoKb}kb</span></span>
+      <button class="mini-btn" data-rmdoc="${d.id}" style="padding:2px 8px; color:var(--red); border-color:var(--red);">remover</button>
+    </div>`;
+  }).join('');
+}
+
 async function handleFile(file){
   const ext = file.name.split('.').pop().toLowerCase();
   if(!['pdf','docx','txt'].includes(ext)){
@@ -1592,11 +1619,9 @@ async function handleFile(file){
   const id = idSeq++;
   const caseObj = {
     id, name:file.name, status:'processando', source:null, fields:null, rawText:'',
-    preliminaresExtras:{ residencia:false, ilegitimidade:false, prescricao:false, interesseAgir:false },
     criadoPor: currentUser ? currentUser.usuario : null,
     criadoEm: new Date(),
     dataCitacao: null, prazoDias: 15, dataLimite: null,
-    desfecho: 'pendente',
     baixadoEm: null,
   };
   cases.unshift(caseObj);
@@ -1635,6 +1660,7 @@ async function handleFile(file){
 let currentCaseId = null;
 
 function renderFila(){
+  salvarEstado();
   const body = document.getElementById('filaBody');
   const souAdmin = currentUser && currentUser.papel === 'admin';
   const visiveis = souAdmin && filaFiltro === 'todos'
@@ -1665,15 +1691,15 @@ function renderFila(){
         ? `<span class="route-pill ai"><i></i>Extração por IA</span>`
         : `<span class="route-pill local"><i></i>Extração local</span>`;
     const valorCausa = c.fields && c.fields.valorCausa && !/não localizado/i.test(c.fields.valorCausa) ? c.fields.valorCausa : '';
-    const desfechoBadge = c.desfecho && c.desfecho !== 'pendente'
-      ? `<span class="outcome ${c.desfecho==='improcedente'?'win':c.desfecho==='acordo'?'settle':'loss'}" style="margin-left:8px;">${c.desfecho}</span>`
-      : '';
     return `<div class="q-row" data-id="${c.id}">
-      <div class="qc-tema">${tema || c.name}${desfechoBadge}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
+      <div class="qc-tema">${tema || c.name}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
       <div class="qc-conf">${prazoBadgeHtml(c)}</div>
       <div>${pill}</div>
       <div class="qc-status">${statusLabel}</div>
-      <div class="qc-arrow">${c.status==='pronto' ? '›' : ''}</div>
+      <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
+        <button class="mini-btn" data-del="${c.id}" title="Excluir processo" style="color:var(--red); border-color:var(--red); padding:2px 8px;">Excluir</button>
+        <span class="qc-arrow">${c.status==='pronto' ? '›' : ''}</span>
+      </div>
     </div>`;
   }).join('');
   body.innerHTML = filtroHtml + `<div class="queue-table">
@@ -1685,6 +1711,12 @@ function renderFila(){
       const id = parseInt(row.dataset.id);
       const c = cases.find(x=>x.id===id);
       if(c && c.status==='pronto'){ currentCaseId=id; renderGeracao(id); goView('geracao'); }
+    });
+  });
+  body.querySelectorAll('button[data-del]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      excluirProcesso(parseInt(btn.dataset.del));
     });
   });
   wireFiltroFila();
@@ -1711,13 +1743,6 @@ function renderGeracao(id){
   const gerando = c.genStatus==='gerando';
   const genLabel = gerando ? '<span class="spin"></span> Gerando contestação' : (c.contestacao ? 'Gerar nova versão' : 'Gerar contestação');
 
-  const extras = c.preliminaresExtras || {};
-  const checkboxesHtml = Object.entries(PRELIMINARES_OPCIONAIS).map(([k,v])=>`
-    <label style="display:flex; align-items:flex-start; gap:8px; font-size:12.5px; color:var(--ink-dim); margin-bottom:8px; cursor:pointer;">
-      <input type="checkbox" data-prelim="${k}" ${extras[k] ? 'checked' : ''} style="margin-top:3px;">
-      <span>${v.label}</span>
-    </label>`).join('');
-
   // corresponde automaticamente ao cliente pelo nome do réu, uma única vez
   if(c.clienteId === undefined){
     const match = clientes.find(cl => f.reu && f.reu.toLowerCase().includes(cl.nome.toLowerCase().split(' ')[0]));
@@ -1727,7 +1752,10 @@ function renderGeracao(id){
     clientes.map(cl => `<option value="${cl.id}" ${c.clienteId===cl.id?'selected':''}>${cl.nome}</option>`).join('');
 
   body.innerHTML = `
-    <div class="back-link" id="backToFila">‹ voltar para a fila</div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="back-link" id="backToFila">‹ voltar para a fila</div>
+      <button class="mini-btn" id="excluirProcessoBtn" style="color:var(--red); border-color:var(--red);">Excluir processo</button>
+    </div>
     <div class="view-head">
       <div class="kicker">${c.name}</div>
       <h1>${f.tema}</h1>
@@ -1765,41 +1793,39 @@ function renderGeracao(id){
           <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Estimativa por dias úteis (só desconta sábado e domingo, sem calendário de feriados forenses). Sempre conferir o prazo real no processo oficial.</div>
         </div>
         <div class="ev-card">
-          <span class="ev-type">preliminares condicionais</span>
-          <div class="ev-body" style="margin-top:8px;">${checkboxesHtml}</div>
+          <span class="ev-type">documentos de apoio</span>
+          <div class="ev-body" style="margin:8px 0;">${documentosApoioListHtml(c)}</div>
+          <label class="mini-btn" style="display:inline-flex; cursor:pointer;">
+            Anexar documento
+            <input type="file" id="docsApoioInput" multiple accept=".pdf,.docx,.txt,.jpg,.jpeg,.png" style="display:none;">
+          </label>
+          <div class="ev-body" style="margin-top:6px; color:var(--ink-faint);">Contratos, comprovantes, telas de sistema etc., além da petição inicial. Ficam anexados só a este processo, nesta sessão do navegador; após atualizar a página, reanexe os que precisar reabrir.</div>
         </div>
         <div class="ev-card">
           <span class="ev-type">padrão de documento (cliente)</span>
           <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
           <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
         </div>
-        <div class="ev-card">
-          <span class="ev-type">desfecho real do processo</span>
-          <select id="desfechoSelect" class="f-input" style="margin:8px 0 0;">
-            <option value="pendente" ${c.desfecho==='pendente'?'selected':''}>Pendente / sem decisão ainda</option>
-            <option value="procedente" ${c.desfecho==='procedente'?'selected':''}>Procedente (perda)</option>
-            <option value="improcedente" ${c.desfecho==='improcedente'?'selected':''}>Improcedente (êxito)</option>
-            <option value="acordo" ${c.desfecho==='acordo'?'selected':''}>Acordo</option>
-          </select>
-          <div class="ev-body">Registrar quando houver decisão. Alimenta a taxa de êxito real na aba Análises.</div>
-        </div>
         <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="width:100%; justify-content:center; margin-top:4px;">${genLabel}</button>
       </div>
     </div>
     ${c.contestacao ? renderContestacaoBlock(c) : ''}`;
   document.getElementById('backToFila').addEventListener('click', ()=>goView('fila'));
+  document.getElementById('excluirProcessoBtn').addEventListener('click', ()=>excluirProcesso(id));
   document.getElementById('genBtn').addEventListener('click', ()=>generateContestacao(id));
-  body.querySelectorAll('input[data-prelim]').forEach(cb=>{
-    cb.addEventListener('change', ()=>{
-      if(!c.preliminaresExtras) c.preliminaresExtras = {};
-      c.preliminaresExtras[cb.dataset.prelim] = cb.checked;
-    });
-  });
   document.getElementById('clienteSelect').addEventListener('change', e=>{
     c.clienteId = e.target.value ? parseInt(e.target.value) : null;
+    salvarEstado();
   });
-  document.getElementById('desfechoSelect').addEventListener('change', e=>{
-    c.desfecho = e.target.value;
+  document.getElementById('docsApoioInput').addEventListener('change', e=>{
+    anexarDocumentosApoio(c, e.target.files);
+    renderGeracao(id);
+  });
+  body.querySelectorAll('button[data-rmdoc]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      removerDocumentoApoio(c, btn.dataset.rmdoc);
+      renderGeracao(id);
+    });
   });
   function atualizarPrazoGeracao(){
     c.dataCitacao = document.getElementById('dataCitacaoInput').value || null;
@@ -1808,6 +1834,7 @@ function renderGeracao(id){
     document.getElementById('prazoResultado').textContent = c.dataLimite
       ? `vence em ${new Date(c.dataLimite).toLocaleDateString('pt-BR')} (${diasUteisRestantes(c.dataLimite)}d úteis)`
       : 'informe a data da citação para calcular';
+    salvarEstado();
   }
   document.getElementById('dataCitacaoInput').addEventListener('change', atualizarPrazoGeracao);
   document.getElementById('prazoDiasInput').addEventListener('change', atualizarPrazoGeracao);
@@ -1821,6 +1848,18 @@ function renderGeracao(id){
       document.getElementById('stepperWrap').innerHTML = renderStepper(c);
     });
   }
+}
+
+function excluirProcesso(id){
+  const c = cases.find(x=>x.id===id);
+  if(!c) return;
+  if(!confirm(`Excluir o processo "${c.name}" da fila? Esta ação não pode ser desfeita.`)) return;
+  cases = cases.filter(x=>x.id!==id);
+  analyses = analyses.filter(a=>a.caseId!==id);
+  if(currentCaseId===id) currentCaseId = null;
+  salvarEstado();
+  goView('fila');
+  renderFila();
 }
 
 function renderContestacaoBlock(c){
@@ -1882,7 +1921,6 @@ function renderAnalises(){
   const body = document.getElementById('analisesBody');
   const souAdmin = currentUser && currentUser.papel === 'admin';
   const analysesVisiveis = souAdmin ? analyses : analyses.filter(a => a.geradoPor === (currentUser && currentUser.usuario));
-  const casesVisiveis = souAdmin ? cases : cases.filter(c => c.criadoPor === (currentUser && currentUser.usuario));
 
   if(analysesVisiveis.length===0){
     body.innerHTML = `<div class="empty-state">
@@ -1897,12 +1935,8 @@ function renderAnalises(){
   analysesVisiveis.forEach(a=>a.checks.forEach(ch=>{ if(!ch.pass) failCount[ch.label]=(failCount[ch.label]||0)+1; }));
   const topFail = Object.entries(failCount).sort((a,b)=>b[1]-a[1])[0];
 
-  const decididos = casesVisiveis.filter(c => c.desfecho && c.desfecho !== 'pendente');
-  const exitos = decididos.filter(c => c.desfecho === 'improcedente' || c.desfecho === 'acordo').length;
-  const taxaExito = decididos.length ? Math.round((exitos/decididos.length)*100) : null;
-
   const rows = analysesVisiveis.map(a=>`
-    <div class="case-row">
+    <div class="case-row" data-case-id="${a.caseId}" style="cursor:pointer;" title="Abrir a minuta gerada deste processo">
       <div class="case-id">#${a.caseId}</div>
       <div class="case-sim">${a.tema}<span class="p">${a.name}</span></div>
       <div style="font-size:11px; color:var(--ink-faint); font-family:var(--mono);">${a.geradoPor || '—'}</div>
@@ -1919,15 +1953,11 @@ function renderAnalises(){
       <div class="sim-card"><div class="n">${avg}%</div><div class="l">pontuação média do checklist automático</div></div>
       <div class="sim-card"><div class="n" style="font-size:14px; line-height:1.4">${topFail ? topFail[0] : 'nenhuma falha recorrente'}</div><div class="l">${topFail ? `falhou em ${topFail[1]} de ${analysesVisiveis.length} gerações` : 'todos os checklists passaram integralmente'}</div></div>
     </div>
-    <div class="sim-grid">
-      <div class="sim-card"><div class="n">${taxaExito===null ? '—' : taxaExito+'%'}</div><div class="l">taxa de êxito real (improcedente ou acordo), entre ${decididos.length} processo(s) com desfecho registrado</div></div>
-      <div class="sim-card"><div class="n">${decididos.length}</div><div class="l">de ${casesVisiveis.length} processo(s) já com desfecho real registrado</div></div>
-    </div>
     <div class="case-list">
       <div class="case-row head"><div>ID</div><div>Tema / arquivo</div><div>Gerado por</div><div>Origem</div><div>Pontuação</div></div>
       ${rows}
     </div>
-    <div class="callout" style="margin-top:16px"><b>Como isso melhora o sistema.</b> Quando um mesmo campo ou tema aparece repetidamente na lista de falhas, é o sinal de onde investir primeiro: ajustar a extração, ampliar a biblioteca de teses para aquele tema, ou refinar o texto do modelo usado na geração. A taxa de êxito real só fica confiável à medida que o desfecho de cada processo (aba Geração) for registrado depois da decisão.</div>
+    <div class="callout" style="margin-top:16px"><b>Como isso melhora o sistema.</b> Quando um mesmo campo ou tema aparece repetidamente na lista de falhas, é o sinal de onde investir primeiro: ajustar a extração, ampliar a biblioteca de teses para aquele tema, ou refinar o texto do modelo usado na geração. Clique em uma linha para reabrir a minuta gerada daquele processo.</div>
     <div class="view-head" style="margin-top:32px">
       <div class="kicker">Consumo da API de IA nesta sessão</div>
       <h1 style="font-size:18px">Quanto o sistema chamou a Anthropic</h1>
@@ -1940,6 +1970,16 @@ function renderAnalises(){
     <div class="callout"><b>Sobre custo.</b> O sistema não estima valor em R$ ou US$ aqui de propósito: o preço por token muda e não deve ficar fixo no código. Para calcular o custo real desta sessão, multiplique os tokens acima pelo preço vigente do modelo em anthropic.com/pricing.</div>`;
 
   document.getElementById('exportarAnalisesBtn').addEventListener('click', exportarAnalises);
+  body.querySelectorAll('.case-row[data-case-id]').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const id = parseInt(row.dataset.caseId);
+      const c = cases.find(x=>x.id===id);
+      if(!c) return;
+      currentCaseId = id;
+      goView('geracao');
+      renderGeracao(id);
+    });
+  });
 }
 
 function exportarAnalises(){
@@ -1972,6 +2012,7 @@ function exportarAnalises(){
   setTimeout(()=>w.print(), 300);
 }
 
+restaurarEstado();
 renderFila();
 initAuth();
 </script>
