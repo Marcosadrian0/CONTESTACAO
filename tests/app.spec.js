@@ -170,6 +170,13 @@ test.describe('login e troca de senha', () => {
 });
 
 test.describe('admin e segregação de acesso', () => {
+  test('painel IA Aplicada aparece no Admin mesmo quando o status da IA não pode ser consultado', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.click('#tabAdmin');
+    await expect(page.locator('#adminBody')).toContainText('IA Aplicada');
+    await expect(page.locator('#adminBody')).toContainText('chamadas de IA tentadas');
+  });
+
   test('operador criado pelo admin é forçado a trocar senha e não vê a aba Admin', async ({ page }) => {
     await loginComoAdminPadrao(page);
     await page.click('#tabAdmin');
@@ -276,6 +283,38 @@ test.describe('geração de contestação', () => {
     await page.click('#genBtn');
     await expect(page.locator('#downloadDocBtn')).toBeVisible();
     await expect(page.locator('.stepper .step').last()).not.toHaveClass(/done/);
+  });
+
+  test('tese cadastrada no Banco de teses entra como seção extra na minuta do mesmo produto', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.click('[data-view="teses"]');
+    await page.selectOption('#teseProduto', 'Empréstimo consignado');
+    await page.fill('#tesePedido', 'pedido de teste automatizado');
+    await page.fill('#teseModelo', 'Texto da tese cadastrada para teste automatizado.');
+    await page.click('#saveTeseBtn');
+    await expect(page.locator('#tesesBody')).toContainText('pedido de teste automatizado');
+
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-view="fila"]').then(()=>page.click('#dropzone'))]);
+    await fc.setFiles(PETICAO_TESTE);
+    await page.click('.q-row[data-id]');
+    await page.click('#genBtn');
+    await expect(page.locator('#downloadDocBtn')).toBeVisible();
+    await expect(page.locator('.page-preview')).toContainText('Tese cadastrada: pedido de teste automatizado');
+  });
+
+  test('direcionador "acordo" oculta a geração de contestação e registra o encaminhamento', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc.setFiles(PETICAO_TESTE);
+    await page.click('.q-row[data-id]');
+    await page.check('input[name="direcionador"][value="acordo"]');
+    await expect(page.locator('#registrarAcordoBtn')).toBeVisible();
+    await page.fill('#acordoObsInput', 'Negociação em andamento com o autor.');
+    await page.click('#registrarAcordoBtn');
+    await expect(page.locator('#geracaoBody')).toContainText('Registrado em');
+
+    await page.click('[data-view="fila"]');
+    await expect(page.locator('.q-row[data-id]')).toContainText('acordo');
   });
 });
 

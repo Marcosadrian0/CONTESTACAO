@@ -477,6 +477,7 @@ html[data-theme="dark"] .auth-screen{
   <div class="tabs" id="tabs">
     <div class="tab active" data-view="fila">Fila</div>
     <div class="tab" data-view="geracao">Geração</div>
+    <div class="tab" data-view="teses">Banco de teses</div>
     <div class="tab" data-view="analises">Análises</div>
     <div class="tab" data-view="padroes">Padrões por cliente</div>
     <div class="tab" data-view="admin" id="tabAdmin" style="display:none">Admin</div>
@@ -522,6 +523,16 @@ html[data-theme="dark"] .auth-screen{
   <!-- ============ GERAÇÃO ============ -->
   <section class="view" id="view-geracao">
     <div id="geracaoBody"></div>
+  </section>
+
+  <!-- ============ BANCO DE TESES ============ -->
+  <section class="view" id="view-teses">
+    <div class="view-head">
+      <div class="kicker">Biblioteca de teses por produto</div>
+      <h1>Cadastre teses para serem aplicadas na geração da contestação</h1>
+      <p>Cada tese fica associada a um produto (tema) e a um pedido específico da petição. Ao gerar uma contestação para aquele produto, as teses cadastradas aqui entram na minuta como seções adicionais, além do modelo fixo já validado.</p>
+    </div>
+    <div id="tesesBody"></div>
   </section>
 
   <!-- ============ ANÁLISES (real, roda sobre as contestações geradas nesta sessão) ============ -->
@@ -585,9 +596,11 @@ function goView(name){
 }
 tabs.forEach(t=>t.addEventListener('click', ()=>{
   goView(t.dataset.view);
+  if(t.dataset.view==='fila') renderFila();
   if(t.dataset.view==='analises') renderAnalises();
   if(t.dataset.view==='padroes') renderPadroes();
   if(t.dataset.view==='admin') renderAdmin();
+  if(t.dataset.view==='teses') renderTeses();
 }));
 
 /* ---------------- autenticação ---------------- */
@@ -743,19 +756,61 @@ function initAuth(){
 }
 
 /* ---------------- admin: gestão de usuários ---------------- */
+// Só informa se a variável de ambiente ANTHROPIC_API_KEY está configurada no servidor;
+// nunca chama de fato a API da Anthropic (sem custo de tokens).
+async function consultarStatusIa(){
+  try{
+    const r = await fetch('/api/anthropic');
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){
+    return null;
+  }
+}
+
+let ultimoIaCfg = null;
+
 async function renderAdmin(){
   if(!currentUser || currentUser.papel !== 'admin') return;
   const body = document.getElementById('adminBody');
   body.innerHTML = `<div class="empty-state"><b>Carregando usuários…</b></div>`;
   try{
-    const usuarios = await apiUsersList();
-    renderAdminBody(usuarios);
+    const [usuarios, iaCfg] = await Promise.all([apiUsersList(), consultarStatusIa()]);
+    ultimoIaCfg = iaCfg;
+    renderAdminBody(usuarios, iaCfg);
   }catch(e){
     body.innerHTML = `<div class="empty-state"><b>Não foi possível carregar os usuários</b><span>${e.message}</span></div>`;
   }
 }
 
-function renderAdminBody(usuarios){
+// Painel "IA Aplicada": mostra se a chave da Anthropic está configurada no servidor (nunca
+// pede login/senha de IA ao usuário — a chave fica só na variável de ambiente da Vercel,
+// nunca no navegador, para não expor um segredo de API a quem tiver acesso ao DevTools) e o
+// consumo de tokens observado nesta sessão do navegador (iaStats, o mesmo contador usado na
+// aba Análises).
+function iaAplicadaHtml(iaCfg){
+  const configurada = iaCfg && iaCfg.configured;
+  const statusHtml = iaCfg === null
+    ? `<span class="status-pill pend">Não foi possível consultar o status (falha de rede)</span>`
+    : configurada
+      ? `<span class="status-pill ok">Chave da Anthropic configurada no servidor</span>`
+      : `<span class="status-pill pend">Chave da Anthropic NÃO configurada (ANTHROPIC_API_KEY ausente na Vercel)</span>`;
+  return `
+    <div class="view-head" style="margin-top:0;">
+      <div class="kicker">IA Aplicada</div>
+      <h1 style="font-size:20px">Credencial e consumo da IA usada pelo sistema</h1>
+    </div>
+    <div style="margin-bottom:14px;">${statusHtml}</div>
+    <div class="sim-grid">
+      <div class="sim-card"><div class="n">${iaStats.chamadas}</div><div class="l">chamadas de IA tentadas nesta sessão do navegador</div></div>
+      <div class="sim-card"><div class="n">${iaStats.sucesso}</div><div class="l">respondidas pela IA (${iaStats.falhaOuLocal} caíram para o modo local)</div></div>
+      <div class="sim-card"><div class="n" style="font-size:16px;">${iaStats.tokensEntrada + iaStats.tokensSaida}</div><div class="l">tokens somados (${iaStats.tokensEntrada} entrada / ${iaStats.tokensSaida} saída)</div></div>
+    </div>
+    <div class="callout" style="margin-top:12px"><b>Por que não há campo de login/senha de IA aqui.</b> A chave da API da Anthropic é configurada apenas como variável de ambiente no projeto na Vercel (Settings → Environment Variables → ANTHROPIC_API_KEY), nunca em um campo editável nesta tela: um campo assim exporia a chave a qualquer pessoa com acesso ao navegador (DevTools, extensões), o que seria um risco de segurança real. Quem tem acesso ao painel da Vercel pode trocar a chave por lá a qualquer momento; esta tela mostra apenas se ela está presente e o quanto está sendo consumida.</div>
+    <div class="callout"><b>Sobre os números acima.</b> Contam só esta sessão deste navegador, não o uso agregado de todos os operadores (isso exigiria registrar cada chamada em um banco de dados compartilhado, o que ainda não existe). O histórico completo por geração fica na aba Análises.</div>`;
+}
+
+function renderAdminBody(usuarios, iaCfg = ultimoIaCfg){
   const body = document.getElementById('adminBody');
   const rows = usuarios.map(u => `
     <div class="user-row">
@@ -769,7 +824,13 @@ function renderAdminBody(usuarios){
       </div>
     </div>`).join('');
 
-  body.innerHTML = `<div class="admin-shell">
+  body.innerHTML = `
+    ${iaAplicadaHtml(iaCfg)}
+    <div class="view-head">
+      <div class="kicker">Usuários</div>
+      <h1 style="font-size:20px">Contas com acesso ao sistema</h1>
+    </div>
+    <div class="admin-shell">
     <div class="client-form">
       <h3>Novo usuário</h3>
       <label class="f-label">Usuário (login)</label>
@@ -860,6 +921,8 @@ let analyses = [];
 let idSeq = 1;
 let clientes = [];
 let clienteSeq = 1;
+let teses = [];
+let teseSeq = 1;
 const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
 let filaFiltro = 'todos'; // 'todos' | 'meus' — só tem efeito para papel admin, operador sempre vê só os seus
 
@@ -871,7 +934,7 @@ let filaFiltro = 'todos'; // 'todos' | 'meus' — só tem efeito para papel admi
 const ESTADO_KEY = 'mc_estado_v1';
 function salvarEstado(){
   try{
-    localStorage.setItem(ESTADO_KEY, JSON.stringify({ cases, analyses, idSeq, clientes, clienteSeq }));
+    localStorage.setItem(ESTADO_KEY, JSON.stringify({ cases, analyses, idSeq, clientes, clienteSeq, teses, teseSeq }));
   }catch(e){
     console.warn('Não foi possível salvar o estado local (localStorage cheio ou indisponível).', e);
   }
@@ -886,6 +949,8 @@ function restaurarEstado(){
     if(typeof parsed.idSeq === 'number') idSeq = parsed.idSeq;
     if(Array.isArray(parsed.clientes)) clientes = parsed.clientes;
     if(typeof parsed.clienteSeq === 'number') clienteSeq = parsed.clienteSeq;
+    if(Array.isArray(parsed.teses)) teses = parsed.teses;
+    if(typeof parsed.teseSeq === 'number') teseSeq = parsed.teseSeq;
     cases.forEach(c=>{
       if(c.status==='processando'){
         c.status = 'erro';
@@ -998,9 +1063,19 @@ function montarSecoes(c){
   secoes.push({ t: 'Mérito: impugnação específica ao pedido de danos morais', b: BLOCOS_FIXOS.meritoDanosMorais });
   secoes.push({ t: 'Necessidade de compensação de valores', b: BLOCOS_FIXOS.compensacao });
   secoes.push({ t: 'Apuração do valor do indébito', b: BLOCOS_FIXOS.apuracaoIndebito });
+
+  tesesDoTema(f.tema).forEach(t=>{
+    secoes.push({ t: `Tese cadastrada: ${t.pedido}`, b: t.modeloTese });
+  });
+
   secoes.push({ t: 'Considerações finais', b: BLOCOS_FIXOS.consideracoesFinais });
 
   return secoes;
+}
+
+// Teses do banco de teses (aba "Banco de teses") cadastradas para o produto/tema informado.
+function tesesDoTema(tema){
+  return teses.filter(t => t.produto === tema);
 }
 
 // Monta uma minuta de exemplo (sem processo real carregado), usada só para pré-visualização
@@ -1063,6 +1138,118 @@ async function tryAiRegularidade(f, rawText, textoModelo){
     registrarChamadaIa(false, null);
     return null;
   }
+}
+
+/* ---------------- banco de teses ---------------- */
+// Teses cadastradas pelo próprio usuário, por produto (tema). Entram como seções extras na
+// minuta (ver montarSecoes) sempre que o produto do cadastro bate com o tema do processo.
+function renderTeses(){
+  salvarEstado();
+  const body = document.getElementById('tesesBody');
+  const produtoOptions = Object.keys(TEMA_PRODUTOS).map(t=>`<option value="${t}">${t}</option>`).join('')
+    + `<option value="__outro__">Outro produto (especificar)</option>`;
+
+  const listaHtml = teses.length === 0
+    ? `<div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M13 4v5h5"/></svg>
+        <b>Nenhuma tese cadastrada</b>
+        <span>Use o formulário ao lado para cadastrar a primeira tese.</span>
+      </div>`
+    : `<div class="client-list">${teses.map(t => `
+        <div class="client-card">
+          <div class="client-card-head">
+            <div>
+              <div class="client-name">${t.produto}</div>
+              <div class="client-badges">
+                <span class="client-badge">${t.pedido}</span>
+                ${t.causaRaiz ? `<span class="client-badge off">${t.causaRaiz}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div style="font-size:12.5px; color:var(--ink-dim); margin:8px 0; max-height:80px; overflow:hidden;">${t.modeloTese.slice(0,220)}${t.modeloTese.length>220?'…':''}</div>
+          <div class="client-actions">
+            <button class="mini-btn" data-edit="${t.id}">Editar</button>
+            <button class="mini-btn danger" data-del="${t.id}">Remover</button>
+          </div>
+        </div>`).join('')}</div>`;
+
+  body.innerHTML = `<div class="client-shell">
+    <div class="client-form">
+      <h3 id="teseFormTitle">Nova tese</h3>
+      <input type="hidden" id="teseEditId" value="">
+      <label class="f-label">Produto</label>
+      <select class="f-input" id="teseProduto">${produtoOptions}</select>
+      <input class="f-input" id="teseProdutoOutro" placeholder="nome do produto" style="display:none;">
+
+      <label class="f-label">Causa raiz</label>
+      <input class="f-input" id="teseCausaRaiz" placeholder="ex.: fraude na contratação por biometria comprometida">
+
+      <label class="f-label">Pedido</label>
+      <input class="f-input" id="tesePedido" placeholder="ex.: repetição de indébito em dobro">
+
+      <label class="f-label">Modelo de tese (texto a ser aplicado na minuta)</label>
+      <textarea class="f-input" id="teseModelo" rows="8" placeholder="Texto completo da tese, no mesmo estilo das demais seções da contestação."></textarea>
+
+      <button class="btn-generate" id="saveTeseBtn" style="width:100%; justify-content:center;">Salvar tese</button>
+    </div>
+    <div>${listaHtml}</div>
+  </div>`;
+
+  function alternarProdutoOutro(){
+    const outro = document.getElementById('teseProduto').value === '__outro__';
+    document.getElementById('teseProdutoOutro').style.display = outro ? 'block' : 'none';
+  }
+  document.getElementById('teseProduto').addEventListener('change', alternarProdutoOutro);
+
+  document.getElementById('saveTeseBtn').addEventListener('click', ()=>{
+    const editId = document.getElementById('teseEditId').value;
+    const produtoSel = document.getElementById('teseProduto').value;
+    const produto = produtoSel === '__outro__' ? document.getElementById('teseProdutoOutro').value.trim() : produtoSel;
+    const pedido = document.getElementById('tesePedido').value.trim();
+    const modeloTese = document.getElementById('teseModelo').value.trim();
+    if(!produto || !pedido || !modeloTese){
+      alert('Preencha ao menos Produto, Pedido e Modelo de tese.');
+      return;
+    }
+    const dados = {
+      produto,
+      causaRaiz: document.getElementById('teseCausaRaiz').value.trim(),
+      pedido,
+      modeloTese,
+      criadoPor: currentUser ? currentUser.usuario : null,
+    };
+    if(editId){
+      const t = teses.find(x=>x.id===parseInt(editId));
+      if(t) Object.assign(t, dados);
+    } else {
+      teses.push({ id: teseSeq++, ...dados });
+    }
+    renderTeses();
+  });
+
+  body.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const t = teses.find(x=>x.id===parseInt(btn.dataset.edit));
+      if(!t) return;
+      document.getElementById('teseFormTitle').textContent = 'Editar tese';
+      document.getElementById('teseEditId').value = t.id;
+      const temaConhecido = Object.keys(TEMA_PRODUTOS).includes(t.produto);
+      document.getElementById('teseProduto').value = temaConhecido ? t.produto : '__outro__';
+      document.getElementById('teseProdutoOutro').value = temaConhecido ? '' : t.produto;
+      document.getElementById('teseCausaRaiz').value = t.causaRaiz || '';
+      document.getElementById('tesePedido').value = t.pedido;
+      document.getElementById('teseModelo').value = t.modeloTese;
+      alternarProdutoOutro();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  body.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(!confirm('Remover esta tese? Ela deixará de ser aplicada em novas gerações.')) return;
+      teses = teses.filter(t=>t.id!==parseInt(btn.dataset.del));
+      renderTeses();
+    });
+  });
 }
 
 /* ---------------- padrões por cliente ---------------- */
@@ -1623,6 +1810,8 @@ async function handleFile(file){
     criadoEm: new Date(),
     dataCitacao: null, prazoDias: 15, dataLimite: null,
     baixadoEm: null,
+    direcionador: 'defesa',
+    acordoObs: '', acordoRegistradoEm: null,
   };
   cases.unshift(caseObj);
   renderFila();
@@ -1691,8 +1880,9 @@ function renderFila(){
         ? `<span class="route-pill ai"><i></i>Extração por IA</span>`
         : `<span class="route-pill local"><i></i>Extração local</span>`;
     const valorCausa = c.fields && c.fields.valorCausa && !/não localizado/i.test(c.fields.valorCausa) ? c.fields.valorCausa : '';
+    const acordoBadge = c.direcionador==='acordo' ? `<span class="outcome settle" style="margin-left:8px;">acordo</span>` : '';
     return `<div class="q-row" data-id="${c.id}">
-      <div class="qc-tema">${tema || c.name}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
+      <div class="qc-tema">${tema || c.name}${acordoBadge}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
       <div class="qc-conf">${prazoBadgeHtml(c)}</div>
       <div>${pill}</div>
       <div class="qc-status">${statusLabel}</div>
@@ -1766,7 +1956,22 @@ function renderGeracao(id){
       <div class="status-chip ${c.source==='ai'?'ai':'local'}"><i></i>${sourceLabel}</div>
       ${f.pedeTutela ? '<div class="status-chip local"><i></i>tutela de urgência identificada na inicial, seção de preliminares incluída automaticamente</div>' : ''}
     </div>
-    <div class="gen-shell">
+    <div class="ev-card" style="margin-bottom:16px;">
+      <span class="ev-type">direcionador do caso</span>
+      <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="radio" name="direcionador" value="defesa" ${c.direcionador!=='acordo'?'checked':''}> Defesa (gerar contestação)</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="radio" name="direcionador" value="acordo" ${c.direcionador==='acordo'?'checked':''}> Acordo (não gerar contestação, registrar encaminhamento)</label>
+      </div>
+      <div class="ev-body" style="margin-top:6px;">Define o caminho do processo. No caminho de acordo, o sistema não redige nenhuma proposta, já que os termos de um acordo dependem de negociação real; apenas registra o encaminhamento e a observação do operador.</div>
+    </div>
+    ${c.direcionador==='acordo' ? `
+    <div class="ev-card" style="margin-bottom:16px;">
+      <span class="ev-type">encaminhamento para acordo</span>
+      <textarea class="f-input" id="acordoObsInput" rows="3" placeholder="Observações sobre a negociação (opcional)" style="margin-top:8px;">${c.acordoObs || ''}</textarea>
+      <button class="mini-btn" id="registrarAcordoBtn" style="margin-top:6px;">${c.acordoRegistradoEm ? 'Atualizar registro de acordo' : 'Registrar encaminhamento para acordo'}</button>
+      ${c.acordoRegistradoEm ? `<div class="ev-body" style="margin-top:6px; color:var(--green);">Registrado em ${new Date(c.acordoRegistradoEm).toLocaleString('pt-BR')}</div>` : ''}
+    </div>` : ''}
+    <div class="gen-shell" style="${c.direcionador==='acordo' ? 'opacity:0.55; pointer-events:none;' : ''}">
       <div class="doc-frame">
         <div class="doc-court">Petição inicial, texto extraído do arquivo</div>
         <h5>Resumo</h5>
@@ -1810,9 +2015,25 @@ function renderGeracao(id){
       </div>
     </div>
     ${c.contestacao ? renderContestacaoBlock(c) : ''}`;
-  document.getElementById('backToFila').addEventListener('click', ()=>goView('fila'));
+  document.getElementById('backToFila').addEventListener('click', ()=>{ goView('fila'); renderFila(); });
   document.getElementById('excluirProcessoBtn').addEventListener('click', ()=>excluirProcesso(id));
   document.getElementById('genBtn').addEventListener('click', ()=>generateContestacao(id));
+  body.querySelectorAll('input[name="direcionador"]').forEach(radio=>{
+    radio.addEventListener('change', e=>{
+      c.direcionador = e.target.value;
+      salvarEstado();
+      renderGeracao(id);
+    });
+  });
+  const registrarAcordoBtn = document.getElementById('registrarAcordoBtn');
+  if(registrarAcordoBtn){
+    registrarAcordoBtn.addEventListener('click', ()=>{
+      c.acordoObs = document.getElementById('acordoObsInput').value;
+      c.acordoRegistradoEm = new Date();
+      salvarEstado();
+      renderGeracao(id);
+    });
+  }
   document.getElementById('clienteSelect').addEventListener('change', e=>{
     c.clienteId = e.target.value ? parseInt(e.target.value) : null;
     salvarEstado();
@@ -1914,7 +2135,37 @@ function renderContestacaoBlock(c){
         <div class="gate-list" style="margin-top:12px">${checksHtml}</div>
       </div>
     </div>
-    <div class="callout" style="margin-top:16px"><b>Sobre o arquivo baixado.</b> O .doc abre no Word com a formatação já pronta para revisão e ajuste, aplicando o ${padraoLabel}. É esse arquivo que deve ser anexado ao Iilex, ao GED ou enviado ao advogado responsável, não a tela do navegador.</div>`;
+    <div class="callout" style="margin-top:16px"><b>Sobre o arquivo baixado.</b> O .doc abre no Word com a formatação já pronta para revisão e ajuste, aplicando o ${padraoLabel}. É esse arquivo que deve ser anexado ao Iilex, ao GED ou enviado ao advogado responsável, não a tela do navegador.</div>
+    ${defesaPorPedidoHtml(c)}`;
+}
+
+// Painel "defesa aplicada por pedido": para cada pedido identificado na inicial, mostra qual
+// tese foi de fato usada na minuta, a tese cadastrada no Banco de teses quando existe uma
+// compatível com o produto/pedido, senão o modelo padrão de mérito do tema. Só existe uma
+// lista de pedidos quando a extração foi feita por IA (a extração local não os identifica).
+function defesaPorPedidoHtml(c){
+  const f = c.fields;
+  const pedidos = (f.pedidos || []).filter(p => p && !/não identificad/i.test(p));
+  if(!pedidos.length){
+    return `<div class="callout" style="margin-top:16px"><b>Defesa aplicada por pedido.</b> Os pedidos da petição não foram identificados individualmente (isso só acontece quando a extração é feita por IA). A defesa de mérito segue o modelo padrão do tema "${f.tema}", visível nas seções acima.</div>`;
+  }
+  const candidatas = tesesDoTema(f.tema);
+  const linhas = pedidos.map(p=>{
+    const pl = p.toLowerCase();
+    const tese = candidatas.find(t => pl.includes(t.pedido.toLowerCase()) || t.pedido.toLowerCase().includes(pl));
+    const defesaLabel = tese
+      ? `Tese cadastrada: "${tese.pedido}"`
+      : 'Modelo padrão do tema (mérito e preliminares fixas acima)';
+    const excerpt = tese ? tese.modeloTese.slice(0,180) + (tese.modeloTese.length>180?'…':'') : '';
+    return `<div class="gate"><div class="gate-icon ${tese?'pass':'warn'}">${tese?'✓':'·'}</div><div><div class="gate-title">${p}</div><div class="gate-desc">${defesaLabel}${excerpt ? ': '+excerpt : ''}</div></div></div>`;
+  }).join('');
+  return `
+    <div class="view-head" style="margin-top:32px">
+      <div class="kicker">Por pedido da petição inicial</div>
+      <h1 style="font-size:18px">Defesa aplicada a cada pedido</h1>
+    </div>
+    <div class="gate-list">${linhas}</div>
+    <div class="callout" style="margin-top:12px"><b>Como preencher isto melhor.</b> Cadastre uma tese no Banco de teses com o mesmo produto deste processo e um "Pedido" que dê match com o texto do pedido da inicial, para que ela apareça aqui como a defesa efetivamente aplicada, em vez do modelo padrão do tema.</div>`;
 }
 
 function renderAnalises(){

@@ -7,8 +7,15 @@
 // O index.html chama esta função em /api/anthropic, nunca a API da Anthropic direto.
 
 export default async function handler(req, res) {
+  // GET só informa se a chave está configurada no servidor, sem chamar a API da Anthropic
+  // (sem custo de tokens). Usado pela aba Admin > IA Aplicada para mostrar o status.
+  if (req.method === 'GET') {
+    res.status(200).json({ configured: !!process.env.ANTHROPIC_API_KEY });
+    return;
+  }
+
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Método não permitido, use POST.' });
+    res.status(405).json({ error: 'Método não permitido, use GET ou POST.' });
     return;
   }
 
