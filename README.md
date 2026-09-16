@@ -121,6 +121,12 @@ Como funciona, tecnicamente:
 - Limitação conhecida: o token de sessão é autocontido (ver seção de limitações mais
   abaixo) e carrega o `empresa_id` do momento do login. Se o admin master mudar a
   empresa de um usuário já logado, isso só passa a valer no próximo login dele.
+- Migração seguro para bancos que já tinham usuários antes deste recurso existir:
+  ao adicionar a coluna `empresa_id`, usuários antigos ficariam sem empresa (o que os
+  bloquearia). `api/users.js` corrige isso sozinho, a cada chamada: garante que existe
+  uma empresa "Interno (admin master)" e move para ela qualquer usuário sem empresa
+  associada. Não é preciso rodar nada manualmente após o deploy; só reatribuir depois,
+  pela aba Admin, quem precisar ficar numa empresa diferente.
 
 ## Restrição de acesso por IP
 

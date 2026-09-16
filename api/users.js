@@ -123,19 +123,29 @@ function usuarioPublico(row) {
 }
 
 async function garantirSeed(sql) {
+  // Garante que existe ao menos uma empresa, mesmo em bancos que já tinham usuários antes
+  // de "empresa" existir como conceito (rodou antes desta função ganhar suporte a
+  // multi-empresa): sem isso, o passo de backfill abaixo não teria para onde apontar.
+  let interno = (await sql`SELECT id FROM empresas WHERE nome = 'Interno (admin master)'`)[0];
+  if (!interno) {
+    [interno] = await sql`INSERT INTO empresas (nome) VALUES ('Interno (admin master)') RETURNING id`;
+  }
+
   const existentes = await sql`SELECT COUNT(*)::int AS n FROM users`;
-  if (existentes[0].n > 0) return;
-  const [interno] = await sql`
-    INSERT INTO empresas (nome) VALUES ('Interno (admin master)')
-    ON CONFLICT (nome) DO UPDATE SET nome = EXCLUDED.nome
-    RETURNING id
-  `;
-  // Primeiro uso: cria o admin padrão com senha temporária, igual para todo mundo.
-  await sql`
-    INSERT INTO users (usuario, senha_hash, papel, trocar_senha, empresa_id)
-    VALUES ('marcos.oliveira', ${gerarSenhaHash('1234')}, 'admin', true, ${interno.id})
-    ON CONFLICT (usuario) DO NOTHING
-  `;
+  if (existentes[0].n === 0) {
+    // Primeiro uso: cria o admin padrão com senha temporária, igual para todo mundo.
+    await sql`
+      INSERT INTO users (usuario, senha_hash, papel, trocar_senha, empresa_id)
+      VALUES ('marcos.oliveira', ${gerarSenhaHash('1234')}, 'admin', true, ${interno.id})
+      ON CONFLICT (usuario) DO NOTHING
+    `;
+  }
+
+  // Backfill: usuários criados antes da coluna empresa_id existir ficam sem empresa depois
+  // do ALTER TABLE (NULL não tem DEFAULT). Sem isso, esses usuários ficariam bloqueados
+  // (api/dados.js exige empresa_id) assim que este deploy for publicado. Caem todos na
+  // mesma empresa "Interno" por padrão; um admin master pode movê-los depois, na aba Admin.
+  await sql`UPDATE users SET empresa_id = ${interno.id} WHERE empresa_id IS NULL`;
 }
 
 export default async function handler(req, res) {
