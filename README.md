@@ -142,8 +142,9 @@ vercel dev
 Suíte de regressão com Playwright Test:
 
 - `tests/app.spec.js`: fluxos de login e troca de senha obrigatória, administração
-  de usuários, segregação de acesso por operador, geração de minuta com
-  prazo/desfecho, e responsividade básica. Roda contra o
+  de usuários, segregação de acesso por operador, geração de minuta com prazo,
+  exclusão de processo, Banco de teses, direcionador Defesa/Acordo, tradução de
+  referência, e responsividade básica. Roda contra o
   próprio `index.html` sem precisar de banco real nem `ANTHROPIC_API_KEY` (pdf.js e
   mammoth.js viram um stub; `/api/users` é simulado em memória, com o mesmo formato
   de request/resposta da função de verdade).
@@ -175,12 +176,34 @@ na tela, e um estouro de layout em telas estreitas causado por um item de grid s
 - Geração de minuta com numeração de seção sequencial garantida por código
   (elimina os bugs de numeração encontrados na validação: seção duplicada, título
   órfão, argumento repetido).
-- Preliminares condicionais (ausência de comprovante de residência, ilegitimidade
-  passiva, prescrição trienal, ausência de interesse de agir) selecionáveis por
-  checkbox antes da geração.
-- Portão de qualidade automático, com as regras derivadas da validação real.
-- Aba de Análises: agrega os resultados do portão de qualidade de todas as
-  gerações da sessão, aponta o campo ou regra que falha com mais frequência.
+- Checklist automático de qualidade da minuta (numeração sem duplicidade, título
+  repetido, preliminares antes do mérito, tutela tratada quando identificada),
+  com pontuação exibida logo abaixo da minuta gerada.
+- Aba de Análises: agrega os resultados do checklist de todas as gerações da
+  sessão, aponta o campo ou regra que falha com mais frequência, e cada linha
+  reabre a minuta daquele processo com um clique.
+- Aba "Banco de teses": cadastro de teses por produto (tema), causa raiz, pedido
+  e modelo de texto; toda tese cadastrada para o produto de um processo entra
+  automaticamente como seção extra na minuta gerada para aquele produto.
+- Painel "Defesa aplicada por pedido" na minuta gerada: para cada pedido
+  identificado na petição (via IA), mostra se uma tese do Banco de teses foi
+  aplicada ou se seguiu o modelo padrão do tema.
+- Direcionador "Defesa ou Acordo" na tela de Geração: no caminho de acordo, o
+  sistema não gera nenhuma minuta (os termos de um acordo dependem de negociação
+  real, não são algo para a IA inventar), só registra o encaminhamento e uma
+  observação do operador.
+- Upload de documentos de apoio (contratos, comprovantes, telas de sistema) além
+  da petição inicial, por processo; ficam disponíveis para reabrir enquanto a
+  aba do navegador não é fechada (ver limitação abaixo).
+- Opção de excluir um processo da fila, tanto na lista quanto dentro da tela de
+  Geração.
+- Fila, análises, clientes e Banco de teses sobrevivem a uma atualização de
+  página (F5): ficam salvos em `localStorage`, por navegador (ver "Limitação
+  atual mais importante").
+- Opção de baixar a minuta traduzida por IA para inglês, espanhol ou francês,
+  como cópia de referência: o arquivo carrega um aviso, no próprio `.doc`, de que
+  não é peça válida para protocolo — a peça oficial é sempre a versão em
+  português.
 - Download da minuta em `.doc` (HTML compatível com Word) e opção de imprimir
   direto para PDF pelo navegador.
 - Padrões de documento por cliente: cabeçalho "montado" no sistema (tarja
@@ -212,24 +235,26 @@ na tela, e um estouro de layout em telas estreitas causado por um item de grid s
   obrigatória antes do protocolo continua na tela, só não trava mais nada).
 - Registro de quem gerou cada minuta (usuário logado, data e hora), visível no
   topo da minuta gerada e na aba Análises.
-- Desfecho real do processo (pendente, procedente, improcedente, acordo)
-  registrável na aba Geração; a aba Análises calcula a taxa de êxito real a
-  partir dos desfechos já registrados, além do checklist de completude.
 - Indicador de progresso (dados extraídos → minuta gerada → arquivo baixado)
   na aba Geração, refletindo o estado real de cada processo.
-- Citação de jurisprudência real do STJ na seção de biometria/assinatura
+- Citações de jurisprudência real do STJ: na seção de biometria/assinatura
   eletrônica (REsp 2.159.442/PR, Terceira Turma, Rel. Min. Nancy Andrighi,
-  29/11/2024), pesquisada e verificada em múltiplas fontes — ver comentário
-  em `BLOCOS_FIXOS` no código para a data da verificação e o lembrete de
-  reconferir na fonte oficial (stj.jus.br) antes de qualquer protocolo real.
-- Aviso visual claro nas abas "Casos similares" e "Portão de qualidade" de que são
-  telas de protótipo com dados ilustrativos fixos, não conectadas aos processos
-  reais da sessão.
+  29/11/2024) e na tese de danos morais (AgInt no AREsp 2.157.547/SC e AgInt
+  nos EDcl no AREsp 1.669.683/SP), pesquisadas e verificadas em múltiplas
+  fontes, incluindo contestações reais fornecidas pelo cliente — ver
+  comentário acima de `BLOCOS_FIXOS` no código para a data da verificação, o
+  lembrete de reconferir na fonte oficial (stj.jus.br) antes de qualquer
+  protocolo real, e o alerta sobre o Tema 1.435/STJ (repetitivo em
+  julgamento sobre dano moral presumido por desconto indevido em benefício
+  previdenciário), que pode exigir revisão da tese de danos morais.
 - Alerta por campo quando a extração (IA ou local) não conseguiu localizar o dado,
   em vez de só mostrar o texto "não localizado" sem destaque.
-- Contador de uso da API de IA na aba Análises (chamadas tentadas, quantas caíram
-  para o modo local, tokens de entrada/saída somados), sem estimar custo em R$/US$
-  no código (o preço por token muda; ver anthropic.com/pricing para calcular).
+- Painel "IA Aplicada" na aba Admin: mostra se a chave da Anthropic está
+  configurada no servidor e o consumo de tokens da sessão (chamadas tentadas,
+  quantas caíram para o modo local, tokens de entrada/saída somados), sem
+  estimar custo em R$/US$ no código (o preço por token muda; ver
+  anthropic.com/pricing para calcular) e sem expor a chave em nenhum campo de
+  tela.
 - Botão de exportar/imprimir um relatório da aba Análises.
 - Aviso sobre envio de trechos da petição à API da Anthropic para extração/geração
   por IA, exibido perto do upload (ver seção de privacidade abaixo).
@@ -248,11 +273,15 @@ em volume, e avaliar se algum campo precisa ser mascarado antes do envio.
 ## Limitação atual mais importante
 
 Usuários (login/admin) já ficam num banco de verdade (ver seção acima). O resto do
-estado — processos carregados, contestações geradas, análises, clientes cadastrados
-— continua vivendo só na memória do navegador durante a sessão: fechar a aba apaga
-tudo, e isso não é compartilhado entre máquinas nem persiste entre sessões. É uma
-limitação aceita por ora (decisão explícita: mover isso para banco fica para depois
-de validar as regras de negócio com uso real).
+estado — processos carregados, contestações geradas, análises, clientes cadastrados,
+Banco de teses — fica salvo em `localStorage`, por navegador: sobrevive a uma
+atualização de página (F5), mas não é compartilhado entre máquinas nem entre
+navegadores diferentes do mesmo operador. Os documentos de apoio anexados a um
+processo (aba Geração) são uma exceção: o arquivo em si (blob) fica só em memória
+da aba, não é salvo no `localStorage` (inviabilizaria o espaço disponível rapidamente),
+então precisam ser reanexados depois de um F5. Mover tudo isso para um banco
+compartilhado (ex.: o mesmo Postgres dos usuários) é o próximo passo natural,
+quando as regras de negócio estiverem mais validadas com uso real.
 
 Mesmo com o banco de usuários, isto ainda não é autenticação de nível bancário: não
 há limite de tentativas de login (proteção contra força bruta), nem rotação/revogação
@@ -270,15 +299,21 @@ sistema não impede mais o download de uma minuta não revisada.
 
 ## Próximos passos sugeridos
 
-1. Persistência real de `cases`, `analyses` e `clientes` (ex.: no mesmo Postgres
-   dos usuários, com tabelas próprias), em vez de variáveis em memória — planejado
-   para depois de validar as regras de negócio com uso real (ver "Limitação atual
-   mais importante").
+1. Persistência real de `cases`, `analyses`, `clientes` e `teses` num banco
+   compartilhado (ex.: o mesmo Postgres dos usuários), em vez de `localStorage`
+   por navegador — planejado para depois de validar as regras de negócio com uso
+   real (ver "Limitação atual mais importante"). Inclui também guardar os
+   documentos de apoio de verdade (hoje só ficam em memória da aba).
 2. Ampliar a biblioteca de teses (`TEMA_PRODUTOS` em `index.html`) à medida que
    mais contestações reais forem validadas, seguindo o mesmo processo usado para
    os seis temas atuais: ler peças reais, extrair o padrão comum, e só então
    generalizar. Não dá para simplesmente inventar tese nova sem validar contra
-   peça real, sob risco de gerar defesa juridicamente incorreta.
+   peça real, sob risco de gerar defesa juridicamente incorreta. Um candidato já
+   identificado nas contestações de referência fornecidas pelo cliente: "ação
+   revisional de juros/taxa abusiva" é um tipo de caso bem diferente dos seis
+   temas atuais (todos sobre desconto indevido em consignado), com jurisprudência
+   própria (REsp 1.036.818, REsp 1.061.530/RS, REsp 271.214, REsp 971.853, Súmula
+   530/STJ) — precisaria virar um tema novo, não ser misturado nos existentes.
 3. Gerar o arquivo final como `.docx` nativo (biblioteca de geração no navegador
    ou no backend) em vez do truque de HTML compatível com Word usado hoje.
 4. Calendário de feriados forenses por comarca/tribunal para o cálculo de prazo

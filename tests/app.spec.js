@@ -316,6 +316,33 @@ test.describe('geração de contestação', () => {
     await page.click('[data-view="fila"]');
     await expect(page.locator('.q-row[data-id]')).toContainText('acordo');
   });
+
+  test('baixar tradução de referência gera o arquivo e mantém o aviso de que não vale para protocolo', async ({ page }) => {
+    await page.route('**/api/anthropic', async route => {
+      const body = route.request().postDataJSON();
+      if (body.task === 'traduzir') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: '1. Title\nTranslated paragraph.', usage: { input_tokens: 10, output_tokens: 5 } }) });
+      } else {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'not mocked' }) });
+      }
+    });
+    await gerarContestacao(page);
+    page.on('dialog', dialog => dialog.accept());
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.click('#baixarTraducaoBtn'),
+    ]);
+    expect(download.suggestedFilename()).toContain('REFERENCIA');
+    await expect(page.locator('#baixarTraducaoBtn')).toBeEnabled();
+  });
+
+  test('falha da IA ao traduzir avisa o usuário e não trava o botão', async ({ page }) => {
+    await gerarContestacao(page);
+    page.on('dialog', dialog => dialog.accept());
+    await page.click('#baixarTraducaoBtn');
+    await expect(page.locator('#baixarTraducaoBtn')).toBeEnabled();
+    await expect(page.locator('#baixarTraducaoBtn')).toHaveText('Baixar tradução (.doc)');
+  });
 });
 
 test.describe('layout responsivo', () => {

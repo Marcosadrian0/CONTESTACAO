@@ -49,8 +49,22 @@ export default async function handler(req, res) {
       'Tema: ' + (tema || '') + '. Resumo do caso: ' + (resumo || '') + '. ' +
       'Trecho da petição original, para checagem de fatos: ' + ((trecho || '').slice(0, 3000));
 
+  } else if (task === 'traduzir') {
+    // Tradução de referência da minuta já gerada (não é peça oficial, ver aviso no index.html
+    // e no próprio arquivo baixado). Texto de entrada já é a minuta inteira, com títulos de
+    // seção numerados; pedimos para preservar essa estrutura para o documento traduzido ficar
+    // legível e com a mesma numeração da versão em português.
+    const { idioma, texto } = req.body || {};
+    maxTokens = 4000;
+    prompt =
+      'Você é um tradutor jurídico. Traduza fielmente o texto abaixo, que é uma minuta de contestação em português, para ' + (idioma || 'inglês') + '. ' +
+      'Mantenha a estrutura de seções: cada título numerado (ex.: "1. Título") deve continuar numerado e traduzido, seguido do texto traduzido do parágrafo correspondente. ' +
+      'Não adicione, remova ou explique nada além da tradução; não inclua nenhum aviso ou nota sua no meio do texto (o aviso de que é uma tradução de referência já é adicionado separadamente, fora desta tradução). ' +
+      'Responda SOMENTE com o texto traduzido, sem markdown, sem comentários. ' +
+      'Texto original: ' + (texto || '').slice(0, 20000);
+
   } else {
-    res.status(400).json({ error: 'Campo "task" inválido ou ausente. Use "extract" ou "regularidade".' });
+    res.status(400).json({ error: 'Campo "task" inválido ou ausente. Use "extract", "regularidade" ou "traduzir".' });
     return;
   }
 
