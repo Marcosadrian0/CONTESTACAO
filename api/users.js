@@ -23,7 +23,20 @@ function getSql() {
   return neon(connectionString);
 }
 
+// Multi-empresa: cada usuário pertence a exatamente uma empresa (inclusive o admin master —
+// ele fica numa empresa própria "Interno", só para ter um dono para os dados que ele mesmo
+// cria). O papel 'admin' é quem enxerga e administra TODAS as empresas; 'operador' só enxerga
+// a própria. Isso é o que garante, no servidor (não só na tela), que uma empresa não veja o
+// que a outra fez — ver também api/dados.js, onde essa mesma regra é aplicada aos dados de
+// processos/teses/padrões.
 async function garantirTabela(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS empresas (
+      id SERIAL PRIMARY KEY,
+      nome TEXT UNIQUE NOT NULL,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -31,9 +44,12 @@ async function garantirTabela(sql) {
       senha_hash TEXT NOT NULL,
       papel TEXT NOT NULL DEFAULT 'operador',
       trocar_senha BOOLEAN NOT NULL DEFAULT true,
+      empresa_id INTEGER REFERENCES empresas(id),
       criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `;
+  // ALTER idempotente: cobre bancos criados antes desta coluna existir.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id)`;
 }
 
 function gerarSalt() {
@@ -61,7 +77,7 @@ function base64url(input) {
 }
 function criarToken(user) {
   const secret = process.env.SESSION_SECRET;
-  const payload = { id: user.id, usuario: user.usuario, papel: user.papel, exp: Date.now() + TOKEN_TTL_MS };
+  const payload = { id: user.id, usuario: user.usuario, papel: user.papel, empresaId: user.empresaId, exp: Date.now() + TOKEN_TTL_MS };
   const payloadB64 = base64url(JSON.stringify(payload));
   const assinatura = crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
   return `${payloadB64}.${assinatura}`;
@@ -97,23 +113,39 @@ function paraCampo(row) {
     senhaHash: row.senha_hash,
     papel: row.papel,
     trocarSenha: row.trocar_senha,
+    empresaId: row.empresa_id,
     criadoEm: row.criado_em,
   };
 }
 function usuarioPublico(row) {
   const u = paraCampo(row);
-  return { id: u.id, usuario: u.usuario, papel: u.papel, trocarSenha: u.trocarSenha, criadoEm: u.criadoEm };
+  return { id: u.id, usuario: u.usuario, papel: u.papel, trocarSenha: u.trocarSenha, empresaId: u.empresaId, criadoEm: u.criadoEm };
 }
 
 async function garantirSeed(sql) {
+  // Garante que existe ao menos uma empresa, mesmo em bancos que já tinham usuários antes
+  // de "empresa" existir como conceito (rodou antes desta função ganhar suporte a
+  // multi-empresa): sem isso, o passo de backfill abaixo não teria para onde apontar.
+  let interno = (await sql`SELECT id FROM empresas WHERE nome = 'Interno (admin master)'`)[0];
+  if (!interno) {
+    [interno] = await sql`INSERT INTO empresas (nome) VALUES ('Interno (admin master)') RETURNING id`;
+  }
+
   const existentes = await sql`SELECT COUNT(*)::int AS n FROM users`;
-  if (existentes[0].n > 0) return;
-  // Primeiro uso: cria o admin padrão com senha temporária, igual para todo mundo.
-  await sql`
-    INSERT INTO users (usuario, senha_hash, papel, trocar_senha)
-    VALUES ('marcos.oliveira', ${gerarSenhaHash('1234')}, 'admin', true)
-    ON CONFLICT (usuario) DO NOTHING
-  `;
+  if (existentes[0].n === 0) {
+    // Primeiro uso: cria o admin padrão com senha temporária, igual para todo mundo.
+    await sql`
+      INSERT INTO users (usuario, senha_hash, papel, trocar_senha, empresa_id)
+      VALUES ('marcos.oliveira', ${gerarSenhaHash('1234')}, 'admin', true, ${interno.id})
+      ON CONFLICT (usuario) DO NOTHING
+    `;
+  }
+
+  // Backfill: usuários criados antes da coluna empresa_id existir ficam sem empresa depois
+  // do ALTER TABLE (NULL não tem DEFAULT). Sem isso, esses usuários ficariam bloqueados
+  // (api/dados.js exige empresa_id) assim que este deploy for publicado. Caem todos na
+  // mesma empresa "Interno" por padrão; um admin master pode movê-los depois, na aba Admin.
+  await sql`UPDATE users SET empresa_id = ${interno.id} WHERE empresa_id IS NULL`;
 }
 
 export default async function handler(req, res) {
@@ -139,7 +171,8 @@ export default async function handler(req, res) {
       const sessao = tokenDaRequisicao(req);
       if (!sessao || sessao.papel !== 'admin') { res.status(401).json({ error: 'Sessão inválida ou sem permissão de administrador.' }); return; }
       const linhas = await sql`SELECT * FROM users ORDER BY id`;
-      res.status(200).json({ usuarios: linhas.map(usuarioPublico) });
+      const empresas = await sql`SELECT * FROM empresas ORDER BY nome`;
+      res.status(200).json({ usuarios: linhas.map(usuarioPublico), empresas });
       return;
     }
 
@@ -185,15 +218,42 @@ export default async function handler(req, res) {
     // Demais ações são administrativas.
     if (sessao.papel !== 'admin') { res.status(403).json({ error: 'Ação restrita a administradores.' }); return; }
 
+    if (action === 'criar-empresa') {
+      const { nome } = req.body || {};
+      if (!nome || !nome.trim()) { res.status(400).json({ error: 'Informe o nome da empresa.' }); return; }
+      const existente = await sql`SELECT id FROM empresas WHERE lower(nome) = lower(${nome.trim()})`;
+      if (existente.length > 0) { res.status(409).json({ error: 'Já existe uma empresa com esse nome.' }); return; }
+      await sql`INSERT INTO empresas (nome) VALUES (${nome.trim()})`;
+      const empresas = await sql`SELECT * FROM empresas ORDER BY nome`;
+      res.status(200).json({ empresas });
+      return;
+    }
+
     if (action === 'create') {
-      const { usuario, senha, papel } = req.body || {};
+      const { usuario, senha, papel, empresaId } = req.body || {};
       if (!usuario || !senha) { res.status(400).json({ error: 'Informe usuário e senha temporária.' }); return; }
+      if (!empresaId) { res.status(400).json({ error: 'Selecione a empresa do novo usuário.' }); return; }
+      const empresa = (await sql`SELECT id FROM empresas WHERE id = ${empresaId}`)[0];
+      if (!empresa) { res.status(400).json({ error: 'Empresa inválida.' }); return; }
       const existente = await sql`SELECT id FROM users WHERE lower(usuario) = lower(${usuario})`;
       if (existente.length > 0) { res.status(409).json({ error: 'Já existe um usuário com esse login.' }); return; }
       await sql`
-        INSERT INTO users (usuario, senha_hash, papel, trocar_senha)
-        VALUES (${usuario}, ${gerarSenhaHash(senha)}, ${papel === 'admin' ? 'admin' : 'operador'}, true)
+        INSERT INTO users (usuario, senha_hash, papel, trocar_senha, empresa_id)
+        VALUES (${usuario}, ${gerarSenhaHash(senha)}, ${papel === 'admin' ? 'admin' : 'operador'}, true, ${empresaId})
       `;
+      const todos = await sql`SELECT * FROM users ORDER BY id`;
+      res.status(200).json({ usuarios: todos.map(usuarioPublico) });
+      return;
+    }
+
+    if (action === 'set-empresa') {
+      const { id, empresaId } = req.body || {};
+      if (!empresaId) { res.status(400).json({ error: 'Selecione a empresa.' }); return; }
+      const empresa = (await sql`SELECT id FROM empresas WHERE id = ${empresaId}`)[0];
+      if (!empresa) { res.status(400).json({ error: 'Empresa inválida.' }); return; }
+      const alvo = (await sql`SELECT id FROM users WHERE id = ${id}`)[0];
+      if (!alvo) { res.status(404).json({ error: 'Usuário não encontrado.' }); return; }
+      await sql`UPDATE users SET empresa_id = ${empresaId} WHERE id = ${id}`;
       const todos = await sql`SELECT * FROM users ORDER BY id`;
       res.status(200).json({ usuarios: todos.map(usuarioPublico) });
       return;
@@ -245,6 +305,8 @@ export default async function handler(req, res) {
   }
 }
 
-// Exportado só para o teste de unidade em tests/users-crypto.spec.js checar o hash de
-// senha e o token de sessão de verdade (sem precisar de um Postgres real para isso).
-export { gerarSenhaHash, senhaConfere, criarToken, verificarToken };
+// gerarSenhaHash/senhaConfere/criarToken/verificarToken: exportados para o teste de unidade
+// em tests/users-crypto.spec.js (sem precisar de um Postgres real para isso).
+// tokenDaRequisicao: reaproveitado por api/dados.js, para não duplicar a leitura do header
+// Authorization e a verificação de token em dois arquivos.
+export { gerarSenhaHash, senhaConfere, criarToken, verificarToken, tokenDaRequisicao };

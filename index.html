@@ -246,6 +246,12 @@ main{max-width:1240px; margin:0 auto; padding:38px 34px 100px;}
 .f-row4{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px;}
 .f-row4 label{font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;}
 .f-check{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-dim); margin-bottom:14px; cursor:pointer;}
+.pad-tabs{display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--line);}
+.pad-tab{
+  font-family:var(--sans); font-size:12.5px; font-weight:600; color:var(--ink-faint); background:none; border:none;
+  padding:8px 4px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;
+}
+.pad-tab.active{color:var(--cyan); border-bottom-color:var(--cyan);}
 .logo-preview{
   width:100%; height:70px; border:1px dashed var(--line-strong); border-radius:8px; margin-bottom:14px;
   display:flex; align-items:center; justify-content:center; overflow:hidden; background:#fff;
@@ -471,7 +477,11 @@ html[data-theme="dark"] .auth-screen{
       <button id="btnLight" class="on" title="Tema claro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
       <button id="btnDark" title="Tema escuro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.5A8.5 8.5 0 1 1 11.5 3 7 7 0 0 0 21 12.5Z"/></svg></button>
     </div>
-    <div class="env-badge"><span class="env-dot"></span>dados salvos neste navegador</div>
+    <div class="env-badge"><span class="env-dot"></span>dados salvos por empresa, no servidor</div>
+    <div id="empresaSeletorWrap" style="display:none; gap:8px; align-items:center;">
+      <span style="font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); text-transform:uppercase;">Empresa</span>
+      <select id="empresaSeletor" class="f-input" style="margin-bottom:0; width:auto; padding:6px 10px; font-size:12.5px;"></select>
+    </div>
     <div class="user-chip" id="userChip">
       <span id="userChipName"></span>
       <span class="role" id="userChipRole"></span>
@@ -639,6 +649,7 @@ async function apiUsersList(){
     err.status = resp.status;
     throw err;
   }
+  empresasCache = data.empresas || empresasCache;
   return data.usuarios;
 }
 
@@ -657,7 +668,7 @@ function showChangePw(){
   document.getElementById('novaSenha1').value = '';
   document.getElementById('novaSenha2').value = '';
 }
-function showApp(){
+async function showApp(){
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('changePwScreen').style.display = 'none';
   document.getElementById('appShell').style.display = 'block';
@@ -669,10 +680,38 @@ function showApp(){
   // fila (filtrada para o usuário atual) e limpa a tela de geração de um caso específico.
   filaFiltro = 'todos';
   currentCaseId = null;
+  // Admin master começa vendo a própria empresa (mesmo comportamento de qualquer usuário);
+  // "todas as empresas" é uma escolha explícita no seletor do topo, não o padrão.
+  empresaAtivaAdmin = currentUser.papel === 'admin' ? currentUser.empresaId : null;
   document.getElementById('geracaoBody').innerHTML = '';
   goView('fila');
+  document.getElementById('filaBody').innerHTML = `<div class="empty-state"><b>Carregando dados da empresa…</b></div>`;
+  await restaurarEstado();
+  await atualizarSeletorEmpresa();
   renderFila();
 }
+
+// Seletor de empresa no topo, visível só para o admin master: alterna entre a própria
+// empresa, uma empresa específica de cliente, ou "todas" (agregado, só leitura).
+async function atualizarSeletorEmpresa(){
+  const wrap = document.getElementById('empresaSeletorWrap');
+  if(!currentUser || currentUser.papel !== 'admin'){ wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  const select = document.getElementById('empresaSeletor');
+  const opcoes = [`<option value="todas">Todas as empresas (somente leitura)</option>`]
+    .concat(empresasCache.map(e=>`<option value="${e.id}">${e.nome}</option>`));
+  select.innerHTML = opcoes.join('');
+  select.value = modoSomenteLeitura ? 'todas' : String(empresaAtivaAdmin);
+}
+document.getElementById('empresaSeletor').addEventListener('change', async (e)=>{
+  empresaAtivaAdmin = e.target.value === 'todas' ? 'todas' : parseInt(e.target.value);
+  currentCaseId = null;
+  document.getElementById('geracaoBody').innerHTML = '';
+  goView('fila');
+  document.getElementById('filaBody').innerHTML = `<div class="empty-state"><b>Carregando…</b></div>`;
+  await restaurarEstado();
+  renderFila();
+});
 
 async function tentarLogin(){
   const usuario = document.getElementById('loginUsuario').value.trim();
@@ -685,7 +724,7 @@ async function tentarLogin(){
   try{
     const data = await apiUsers({ action:'login', usuario, senha });
     persistirSessao(data.token, data.usuario);
-    if(data.usuario.trocarSenha){ showChangePw(); } else { showApp(); }
+    if(data.usuario.trocarSenha){ showChangePw(); } else { await showApp(); }
   }catch(e){
     errEl.textContent = e.message;
   }finally{
@@ -704,7 +743,7 @@ async function confirmarTrocaSenha(){
   try{
     const data = await apiUsers({ action:'change-password', novaSenha: s1 });
     persistirSessao(data.token, data.usuario);
-    showApp();
+    await showApp();
   }catch(e){
     errEl.textContent = e.message;
   }finally{
@@ -716,6 +755,10 @@ function logout(){
   // Sem servidor de sessão com estado (o token é autocontido), deslogar é uma ação só
   // do navegador: o token continua tecnicamente válido até expirar (12h), aceitável
   // para o volume de uso desta ferramenta.
+  modoSomenteLeitura = false;
+  empresaAtivaAdmin = null;
+  empresasCache = [];
+  cases = []; analyses = []; clientes = []; teses = [];
   limparSessao();
   showLogin();
 }
@@ -727,13 +770,13 @@ document.getElementById('changePwBtn').addEventListener('click', confirmarTrocaS
 document.getElementById('novaSenha2').addEventListener('keydown', e=>{ if(e.key==='Enter') confirmarTrocaSenha(); });
 document.getElementById('logoutBtn').addEventListener('click', logout);
 
-function initAuth(){
+async function initAuth(){
   const sessao = restaurarSessao();
   if(sessao && sessao.token && sessao.usuario){
     authToken = sessao.token;
     currentUser = sessao.usuario;
     if(currentUser.trocarSenha){ showChangePw(); return; }
-    showApp();
+    await showApp();
     return;
   }
   showLogin();
@@ -794,22 +837,44 @@ function iaAplicadaHtml(iaCfg){
     <div class="callout"><b>Sobre os números acima.</b> Contam só esta sessão deste navegador, não o uso agregado de todos os operadores (isso exigiria registrar cada chamada em um banco de dados compartilhado, o que ainda não existe). O histórico completo por geração fica na aba Análises.</div>`;
 }
 
+function nomeEmpresa(empresaId){
+  const e = empresasCache.find(x=>x.id===empresaId);
+  return e ? e.nome : '—';
+}
+
 function renderAdminBody(usuarios, iaCfg = ultimoIaCfg){
   const body = document.getElementById('adminBody');
+  const empresaOptions = empresasCache.map(e=>`<option value="${e.id}">${e.nome}</option>`).join('');
   const rows = usuarios.map(u => `
     <div class="user-row">
-      <div class="user-name">${u.usuario}${u.id===currentUser.id ? ' <span class="m">(você)</span>' : ''}</div>
-      <div><span class="role-pill ${u.papel==='admin'?'':'op'}">${u.papel==='admin'?'Admin':'Operador'}</span></div>
+      <div class="user-name">${u.usuario}${u.id===currentUser.id ? ' <span class="m">(você)</span>' : ''}<span class="sub" style="display:block; font-size:11px; color:var(--ink-faint);">${nomeEmpresa(u.empresaId)}</span></div>
+      <div><span class="role-pill ${u.papel==='admin'?'':'op'}">${u.papel==='admin'?'Admin master':'Usuário de empresa'}</span></div>
       <div><span class="status-pill ${u.trocarSenha?'pend':'ok'}">${u.trocarSenha ? 'Aguardando troca de senha' : 'Senha definida'}</span></div>
       <div class="user-actions">
         <button class="mini-btn" data-reset="${u.id}">Redefinir senha</button>
-        <button class="mini-btn" data-role="${u.id}">${u.papel==='admin' ? 'Tornar operador' : 'Tornar admin'}</button>
+        <button class="mini-btn" data-role="${u.id}">${u.papel==='admin' ? 'Tornar usuário de empresa' : 'Tornar admin master'}</button>
+        <select class="f-input" data-empresa="${u.id}" style="margin:0; width:auto; padding:4px 8px; font-size:11.5px;">${empresasCache.map(e=>`<option value="${e.id}" ${e.id===u.empresaId?'selected':''}>${e.nome}</option>`).join('')}</select>
         <button class="mini-btn danger" data-del="${u.id}">Remover</button>
       </div>
     </div>`).join('');
 
   body.innerHTML = `
     ${iaAplicadaHtml(iaCfg)}
+    <div class="view-head">
+      <div class="kicker">Empresas (clientes que usam o sistema)</div>
+      <h1 style="font-size:20px">Cada empresa só vê seus próprios processos, teses e padrões</h1>
+      <p>O admin master enxerga e administra todas; um usuário de empresa só vê o que a própria empresa criou.</p>
+    </div>
+    <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:22px;">
+      <div style="flex:1; min-width:220px;">
+        <label class="f-label">Nova empresa</label>
+        <input class="f-input" id="novaEmpresaNome" placeholder="ex.: Banco Agibank S.A." style="margin-bottom:0;">
+      </div>
+      <button class="mini-btn" id="addEmpresaBtn">Criar empresa</button>
+    </div>
+    <div class="auth-error" id="novaEmpresaError"></div>
+    <div class="client-badges" style="margin-bottom:28px;">${empresasCache.map(e=>`<span class="client-badge">${e.nome}</span>`).join('') || '<span style="color:var(--ink-faint); font-size:12px;">nenhuma empresa cadastrada ainda</span>'}</div>
+
     <div class="view-head">
       <div class="kicker">Usuários</div>
       <h1 style="font-size:20px">Contas com acesso ao sistema</h1>
@@ -821,33 +886,63 @@ function renderAdminBody(usuarios, iaCfg = ultimoIaCfg){
       <input class="f-input" id="novoUsuario" placeholder="ex.: joao.silva">
       <label class="f-label">Senha temporária</label>
       <input class="f-input" id="novaSenhaUsuario" placeholder="ex.: 1234">
+      <label class="f-label">Empresa</label>
+      <select class="f-input" id="novaEmpresaUsuario">${empresaOptions || '<option value="">cadastre uma empresa primeiro</option>'}</select>
       <label class="f-label">Papel</label>
       <select class="f-input" id="novoPapel">
-        <option value="operador">Operador</option>
-        <option value="admin">Administrador</option>
+        <option value="operador">Usuário de empresa</option>
+        <option value="admin">Admin master</option>
       </select>
       <div class="auth-error" id="novoUsuarioError"></div>
       <button class="btn-generate" id="addUserBtn" style="width:100%; justify-content:center;">Criar usuário</button>
     </div>
     <div class="user-list">
-      <div class="user-row head"><div>Usuário</div><div>Papel</div><div>Senha</div><div>Ações</div></div>
+      <div class="user-row head"><div>Usuário / empresa</div><div>Papel</div><div>Senha</div><div>Ações</div></div>
       ${rows}
     </div>
   </div>`;
+
+  document.getElementById('addEmpresaBtn').addEventListener('click', async ()=>{
+    const nome = document.getElementById('novaEmpresaNome').value.trim();
+    const errEl = document.getElementById('novaEmpresaError');
+    if(!nome){ errEl.textContent = 'Informe o nome da empresa.'; return; }
+    errEl.textContent = '';
+    try{
+      const data = await apiUsers({ action:'criar-empresa', nome });
+      empresasCache = data.empresas;
+      renderAdminBody(usuarios);
+    }catch(e){
+      errEl.textContent = e.message;
+    }
+  });
 
   document.getElementById('addUserBtn').addEventListener('click', async ()=>{
     const usuario = document.getElementById('novoUsuario').value.trim();
     const senha = document.getElementById('novaSenhaUsuario').value;
     const papel = document.getElementById('novoPapel').value;
+    const empresaId = parseInt(document.getElementById('novaEmpresaUsuario').value) || null;
     const errEl = document.getElementById('novoUsuarioError');
     if(!usuario || !senha){ errEl.textContent = 'Informe usuário e senha temporária.'; return; }
+    if(!empresaId){ errEl.textContent = 'Cadastre e selecione uma empresa para o novo usuário.'; return; }
     errEl.textContent = '';
     try{
-      const data = await apiUsers({ action:'create', usuario, senha, papel });
+      const data = await apiUsers({ action:'create', usuario, senha, papel, empresaId });
       renderAdminBody(data.usuarios);
     }catch(e){
       errEl.textContent = e.message;
     }
+  });
+
+  body.querySelectorAll('select[data-empresa]').forEach(sel=>{
+    sel.addEventListener('change', async ()=>{
+      const id = parseInt(sel.dataset.empresa);
+      try{
+        const data = await apiUsers({ action:'set-empresa', id, empresaId: parseInt(sel.value) });
+        renderAdminBody(data.usuarios);
+      }catch(e){
+        alert(e.message);
+      }
+    });
   });
 
   body.querySelectorAll('[data-reset]').forEach(btn=>{
@@ -875,7 +970,7 @@ function renderAdminBody(usuarios, iaCfg = ultimoIaCfg){
         if(id === currentUser.id){
           const atualizado = data.usuarios.find(x=>x.id===id);
           persistirSessao(authToken, atualizado);
-          showApp();
+          await showApp();
           return;
         }
         renderAdminBody(data.usuarios);
@@ -908,33 +1003,81 @@ let clienteSeq = 1;
 let teses = [];
 let teseSeq = 1;
 const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
+const FONTE_PADRAO = { familia:'Times New Roman', tamanho:12, espacamento:1.5 };
+const FONTES_DISPONIVEIS = ['Times New Roman', 'Arial', 'Calibri', 'Georgia'];
 let filaFiltro = 'todos'; // 'todos' | 'meus' — só tem efeito para papel admin, operador sempre vê só os seus
 
-// Persistência local: fila, análises e padrões de cliente ficam salvos no navegador
-// (localStorage), sobrevivendo a um F5. Isto é por navegador, não um banco compartilhado
-// como o de usuários (api/users.js) — se o mesmo operador abrir em outra máquina, não verá
-// os mesmos processos. Guardado contra localStorage cheio/indisponível: nunca deixa o
-// sistema quebrar por falha ao salvar.
-const ESTADO_KEY = 'mc_estado_v1';
-function salvarEstado(){
+// Persistência compartilhada por empresa (api/dados.js, Postgres) — cada empresa só lê e
+// grava o próprio bloco de dados (cases/analyses/clientes/teses). O admin master pode ver
+// uma empresa específica (lê e edita normalmente) ou "todas as empresas" de uma vez, caso em
+// que a tela fica só de leitura (ver modoSomenteLeitura) porque não haveria uma empresa única
+// para gravar as mudanças.
+const API_DADOS = '/api/dados';
+let modoSomenteLeitura = false;
+let empresaAtivaAdmin = null; // null = própria empresa do admin; 'todas'; ou um id de empresa
+let empresasCache = [];
+
+async function carregarEmpresas(){
+  if(!currentUser || currentUser.papel !== 'admin') return [];
   try{
-    localStorage.setItem(ESTADO_KEY, JSON.stringify({ cases, analyses, idSeq, clientes, clienteSeq, teses, teseSeq }));
-  }catch(e){
-    console.warn('Não foi possível salvar o estado local (localStorage cheio ou indisponível).', e);
-  }
+    const resp = await fetch(API_USERS, { headers: { 'Authorization':'Bearer '+authToken } });
+    const data = await resp.json().catch(()=>({}));
+    if(resp.ok && Array.isArray(data.empresas)) empresasCache = data.empresas;
+  }catch(e){ /* selector de empresa some da tela se isso falhar; não impede o resto */ }
+  return empresasCache;
 }
-function restaurarEstado(){
+
+function salvarEstado(){
+  if(modoSomenteLeitura) return; // "todas as empresas": nada para gravar, ver restaurarEstado
+  const dados = { cases, analyses, idSeq, clientes, clienteSeq, teses, teseSeq };
+  const body = { action:'salvar', dados };
+  if(currentUser && currentUser.papel==='admin' && empresaAtivaAdmin && empresaAtivaAdmin!=='todas'){
+    body.empresaId = empresaAtivaAdmin;
+  }
+  fetch(API_DADOS, {
+    method:'POST',
+    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+authToken },
+    body: JSON.stringify(body),
+  }).catch(e=>console.warn('Não foi possível salvar os dados no servidor.', e));
+}
+
+async function restaurarEstado(){
   try{
-    const raw = localStorage.getItem(ESTADO_KEY);
-    if(!raw) return;
-    const parsed = JSON.parse(raw);
-    if(Array.isArray(parsed.cases)) cases = parsed.cases;
-    if(Array.isArray(parsed.analyses)) analyses = parsed.analyses;
-    if(typeof parsed.idSeq === 'number') idSeq = parsed.idSeq;
-    if(Array.isArray(parsed.clientes)) clientes = parsed.clientes;
-    if(typeof parsed.clienteSeq === 'number') clienteSeq = parsed.clienteSeq;
-    if(Array.isArray(parsed.teses)) teses = parsed.teses;
-    if(typeof parsed.teseSeq === 'number') teseSeq = parsed.teseSeq;
+    if(currentUser && currentUser.papel==='admin') await carregarEmpresas();
+    const querer = (currentUser && currentUser.papel==='admin' && empresaAtivaAdmin) ? empresaAtivaAdmin : null;
+    const url = querer && querer!=='todas' ? `${API_DADOS}?empresaId=${querer}` : API_DADOS;
+    const resp = await fetch(url, { headers: { 'Authorization':'Bearer '+authToken } });
+    if(!resp.ok) throw new Error('falha ao carregar dados do servidor');
+    const data = await resp.json();
+
+    if(data.modo === 'todas'){
+      modoSomenteLeitura = true;
+      cases = []; analyses = []; clientes = []; teses = [];
+      let maxIdSeq=1, maxClienteSeq=1, maxTeseSeq=1;
+      (data.empresas||[]).forEach(e=>{
+        const d = e.dados || {};
+        (d.cases||[]).forEach(c=>cases.push({ ...c, _empresaNome:e.empresaNome, _empresaId:e.empresaId }));
+        (d.analyses||[]).forEach(a=>analyses.push({ ...a, _empresaNome:e.empresaNome }));
+        (d.clientes||[]).forEach(cl=>clientes.push({ ...cl, _empresaNome:e.empresaNome }));
+        (d.teses||[]).forEach(t=>teses.push({ ...t, _empresaNome:e.empresaNome }));
+        maxIdSeq = Math.max(maxIdSeq, d.idSeq||1);
+        maxClienteSeq = Math.max(maxClienteSeq, d.clienteSeq||1);
+        maxTeseSeq = Math.max(maxTeseSeq, d.teseSeq||1);
+      });
+      idSeq = maxIdSeq; clienteSeq = maxClienteSeq; teseSeq = maxTeseSeq;
+    } else {
+      modoSomenteLeitura = false;
+      if(currentUser && currentUser.papel==='admin') empresaAtivaAdmin = data.empresaId;
+      const d = data.dados || {};
+      cases = Array.isArray(d.cases) ? d.cases : [];
+      analyses = Array.isArray(d.analyses) ? d.analyses : [];
+      clientes = Array.isArray(d.clientes) ? d.clientes : [];
+      teses = Array.isArray(d.teses) ? d.teses : [];
+      idSeq = typeof d.idSeq === 'number' ? d.idSeq : 1;
+      clienteSeq = typeof d.clienteSeq === 'number' ? d.clienteSeq : 1;
+      teseSeq = typeof d.teseSeq === 'number' ? d.teseSeq : 1;
+    }
+
     cases.forEach(c=>{
       if(c.status==='processando'){
         c.status = 'erro';
@@ -943,7 +1086,7 @@ function restaurarEstado(){
       if(c.genStatus==='gerando') c.genStatus = c.contestacao ? 'pronto' : null;
     });
   }catch(e){
-    console.warn('Não foi possível restaurar o estado local salvo.', e);
+    console.warn('Não foi possível carregar os dados do servidor.', e);
   }
 }
 
@@ -1143,7 +1286,7 @@ function renderTeses(){
         <div class="client-card">
           <div class="client-card-head">
             <div>
-              <div class="client-name">${t.produto}</div>
+              <div class="client-name">${t.produto}${t._empresaNome ? ` <span style="font-weight:400; color:var(--ink-faint); font-size:11px;">· ${t._empresaNome}</span>` : ''}</div>
               <div class="client-badges">
                 <span class="client-badge">${t.pedido}</span>
                 ${t.causaRaiz ? `<span class="client-badge off">${t.causaRaiz}</span>` : ''}
@@ -1186,6 +1329,7 @@ function renderTeses(){
   document.getElementById('teseProduto').addEventListener('change', alternarProdutoOutro);
 
   document.getElementById('saveTeseBtn').addEventListener('click', ()=>{
+    if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
     const editId = document.getElementById('teseEditId').value;
     const produtoSel = document.getElementById('teseProduto').value;
     const produto = produtoSel === '__outro__' ? document.getElementById('teseProdutoOutro').value.trim() : produtoSel;
@@ -1229,6 +1373,7 @@ function renderTeses(){
   });
   body.querySelectorAll('[data-del]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
       if(!confirm('Remover esta tese? Ela deixará de ser aplicada em novas gerações.')) return;
       teses = teses.filter(t=>t.id!==parseInt(btn.dataset.del));
       renderTeses();
@@ -1237,6 +1382,14 @@ function renderTeses(){
 }
 
 /* ---------------- padrões por cliente ---------------- */
+const NUMERACAO_OPCOES = {
+  'nenhuma': 'Sem numeração',
+  'rodape-esquerda': 'Rodapé, à esquerda',
+  'rodape-centro': 'Rodapé, ao centro',
+  'rodape-direita': 'Rodapé, à direita',
+  'cabecalho-direita': 'Cabeçalho, à direita',
+};
+
 function renderPadroes(){
   salvarEstado();
   const body = document.getElementById('padroesBody');
@@ -1252,10 +1405,14 @@ function renderPadroes(){
         <div class="client-card">
           <div class="client-card-head">
             <div>
-              <div class="client-name">${cl.nome}</div>
+              <div class="client-name">${cl.nome}${cl._empresaNome ? ` <span style="font-weight:400; color:var(--ink-faint); font-size:11px;">· ${cl._empresaNome}</span>` : ''}</div>
               <div class="client-badges">
                 <span class="client-badge ${cl.headerMode!=='nenhum' ? '' : 'off'}">${resumoModo(cl)}</span>
                 <span class="client-badge ${cl.margensPersonalizadas ? '' : 'off'}">${cl.margensPersonalizadas ? `Margens ${cl.margens.top}/${cl.margens.right}/${cl.margens.bottom}/${cl.margens.left} cm` : 'Margens do sistema'}</span>
+                <span class="client-badge ${cl.rodapeAtivo ? '' : 'off'}">${cl.rodapeAtivo ? 'Rodapé ativo' : 'Sem rodapé'}</span>
+                <span class="client-badge ${cl.marcaDaguaAtiva ? '' : 'off'}">${cl.marcaDaguaAtiva ? `Marca d'água: ${cl.marcaDaguaTexto||''}` : 'Sem marca d’água'}</span>
+                <span class="client-badge">${cl.fonte || FONTE_PADRAO.familia}, ${cl.fonteTamanho || FONTE_PADRAO.tamanho}pt</span>
+                <span class="client-badge ${cl.numeracaoPagina && cl.numeracaoPagina!=='nenhuma' ? '' : 'off'}">${NUMERACAO_OPCOES[cl.numeracaoPagina||'nenhuma']}</span>
               </div>
             </div>
           </div>
@@ -1273,41 +1430,68 @@ function renderPadroes(){
       <label class="f-label">Nome do cliente</label>
       <input class="f-input" id="clientNome" placeholder="ex.: Banco Agibank S.A.">
 
-      <label class="f-label">Cabeçalho do documento</label>
-      <select class="f-input" id="headerMode">
-        <option value="nenhum">Nenhum (documento sem identidade visual)</option>
-        <option value="montar">Montar cabeçalho no sistema</option>
-        <option value="anexar">Anexar cabeçalho pronto (imagem)</option>
-      </select>
-
-      <div id="headerPreviewWrap" style="border-radius:8px; overflow:hidden; border:1px solid var(--line); margin-bottom:14px;"></div>
-
-      <div id="camposMontar">
-        <label class="f-label">Logo</label>
-        <div class="logo-preview" id="logoPreview"><span>nenhuma logo selecionada</span></div>
-        <input type="file" accept="image/*" id="clientLogoInput" class="f-input" style="padding:6px;">
-        <label class="f-label">Posição da logo</label>
-        <select class="f-input" id="headerLogoPos"><option value="left">Esquerda</option><option value="center">Centro</option></select>
-        <label class="f-label">Cor da tarja</label>
-        <input type="color" id="headerCor" value="#1a56db" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line-strong); margin-bottom:14px; background:var(--bg);">
-        <label class="f-check"><input type="checkbox" id="headerPontinhos" checked> Incluir pontinhos decorativos (estilo do exemplo do Agibank)</label>
+      <div class="pad-tabs" id="padTabs">
+        <button type="button" class="pad-tab active" data-tab="aparencia">Aparência</button>
+        <button type="button" class="pad-tab" data-tab="conteudo">Conteúdo</button>
+        <button type="button" class="pad-tab" data-tab="avancado">Avançado</button>
       </div>
 
-      <div id="camposAnexar" style="display:none;">
-        <label class="f-label">Imagem do cabeçalho completo (banner)</label>
-        <div class="logo-preview" id="bannerPreview" style="height:56px;"><span>nenhuma imagem selecionada</span></div>
-        <input type="file" accept="image/*" id="bannerInput" class="f-input" style="padding:6px;">
+      <div class="pad-tab-panel active" id="padPanelAparencia">
+        <label class="f-label">Cabeçalho do documento</label>
+        <select class="f-input" id="headerMode">
+          <option value="nenhum">Nenhum (documento sem identidade visual)</option>
+          <option value="montar">Montar cabeçalho no sistema</option>
+          <option value="anexar">Anexar cabeçalho pronto (imagem)</option>
+        </select>
+
+        <div id="headerPreviewWrap" style="border-radius:8px; overflow:hidden; border:1px solid var(--line); margin-bottom:14px;"></div>
+
+        <div id="camposMontar">
+          <label class="f-label">Logo</label>
+          <div class="logo-preview" id="logoPreview"><span>nenhuma logo selecionada</span></div>
+          <input type="file" accept="image/*" id="clientLogoInput" class="f-input" style="padding:6px;">
+          <label class="f-label">Posição da logo</label>
+          <select class="f-input" id="headerLogoPos"><option value="left">Esquerda</option><option value="center">Centro</option></select>
+          <label class="f-label">Cor da tarja</label>
+          <input type="color" id="headerCor" value="#1a56db" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line-strong); margin-bottom:14px; background:var(--bg);">
+          <label class="f-check"><input type="checkbox" id="headerPontinhos" checked> Incluir pontinhos decorativos (estilo do exemplo do Agibank)</label>
+        </div>
+
+        <div id="camposAnexar" style="display:none;">
+          <label class="f-label">Imagem do cabeçalho completo (banner)</label>
+          <div class="logo-preview" id="bannerPreview" style="height:56px;"><span>nenhuma imagem selecionada</span></div>
+          <input type="file" accept="image/*" id="bannerInput" class="f-input" style="padding:6px;">
+        </div>
       </div>
 
-      <label class="f-check"><input type="checkbox" id="clientMargensPersonalizadas"> Usar margens personalizadas (senão, usa o padrão do sistema)</label>
-      <div class="f-row4">
-        <div><label>Superior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgTop" value="2.5"></div>
-        <div><label>Direita (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgRight" value="2.5"></div>
-        <div><label>Inferior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgBottom" value="2.5"></div>
-        <div><label>Esquerda (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgLeft" value="3"></div>
+      <div class="pad-tab-panel" id="padPanelConteudo" style="display:none;">
+        <label class="f-check"><input type="checkbox" id="rodapeAtivo"> Incluir rodapé de texto (ex.: telefone, site, CNPJ)</label>
+        <input class="f-input" id="rodapeTexto" placeholder="ex.: (11) 0000-0000 · www.empresa.com.br · Empresa S.A · CNPJ 00.000.000/0001-00">
+        <label class="f-check"><input type="checkbox" id="marcaDaguaAtiva"> Incluir marca d'água</label>
+        <input class="f-input" id="marcaDaguaTexto" placeholder="ex.: MINUTA, CONFIDENCIAL, nome do cliente">
+        <div class="ev-body" style="margin-top:-6px; margin-bottom:14px; color:var(--ink-faint);">A marca d'água aparece na pré-visualização e no arquivo impresso/PDF; no .doc baixado, por limitação do formato usado, aparece como texto no cabeçalho, sem a rotação diagonal.</div>
       </div>
 
-      <button class="btn-generate" id="saveClientBtn" style="width:100%; justify-content:center;">Salvar padrão</button>
+      <div class="pad-tab-panel" id="padPanelAvancado" style="display:none;">
+        <label class="f-check"><input type="checkbox" id="clientMargensPersonalizadas"> Usar margens personalizadas (senão, usa o padrão do sistema)</label>
+        <div class="f-row4">
+          <div><label>Superior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgTop" value="2.5"></div>
+          <div><label>Direita (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgRight" value="2.5"></div>
+          <div><label>Inferior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgBottom" value="2.5"></div>
+          <div><label>Esquerda (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgLeft" value="3"></div>
+        </div>
+        <label class="f-label">Fonte</label>
+        <select class="f-input" id="fonteSelect">${FONTES_DISPONIVEIS.map(f=>`<option value="${f}">${f}</option>`).join('')}</select>
+        <div class="f-row4" style="grid-template-columns:1fr 1fr;">
+          <div><label>Tamanho (pt)</label><select class="f-input" style="margin-bottom:0" id="fonteTamanho"><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option></select></div>
+          <div><label>Espaçamento entre linhas</label><select class="f-input" style="margin-bottom:0" id="espacamentoSelect"><option value="1">Simples</option><option value="1.15">1,15</option><option value="1.5">1,5</option><option value="2">Duplo</option></select></div>
+        </div>
+        <label class="f-label" style="margin-top:14px;">Numeração de página</label>
+        <select class="f-input" id="numeracaoSelect">${Object.entries(NUMERACAO_OPCOES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+        <div class="ev-body" style="margin-top:-6px; color:var(--ink-faint);">No .doc baixado, a numeração real (\"1 de N\") depende da paginação do Word ao abrir o arquivo; na pré-visualização aqui é só ilustrativa.</div>
+      </div>
+
+      <button class="btn-generate" id="saveClientBtn" style="width:100%; justify-content:center; margin-top:14px;">Salvar padrão</button>
     </div>
     <div>
       <div id="docPreviewPanel" style="margin-bottom:22px;"></div>
@@ -1326,6 +1510,14 @@ function renderPadroes(){
       headerCor: document.getElementById('headerCor').value,
       headerPontinhos: document.getElementById('headerPontinhos').checked,
       headerBannerDataUrl: bannerDataUrlTemp,
+      rodapeAtivo: document.getElementById('rodapeAtivo').checked,
+      rodapeTexto: document.getElementById('rodapeTexto').value,
+      marcaDaguaAtiva: document.getElementById('marcaDaguaAtiva').checked,
+      marcaDaguaTexto: document.getElementById('marcaDaguaTexto').value,
+      fonte: document.getElementById('fonteSelect').value,
+      fonteTamanho: parseInt(document.getElementById('fonteTamanho').value) || FONTE_PADRAO.tamanho,
+      espacamento: parseFloat(document.getElementById('espacamentoSelect').value) || FONTE_PADRAO.espacamento,
+      numeracaoPagina: document.getElementById('numeracaoSelect').value,
     };
   }
   function margensAtuais(){
@@ -1351,10 +1543,12 @@ function renderPadroes(){
     document.getElementById('docPreviewPanel').innerHTML = `
       <div class="preview-label">prévia em escala real do modelo de documento (folha A4, 21 cm), com conteúdo de exemplo</div>
       <div class="page-preview-wrap">
-        <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm;">
+        <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm; font-family:'${cfg.fonte}', serif; font-size:${cfg.fonteTamanho}pt; line-height:${cfg.espacamento};">
+          ${marcaDaguaHtml(cfg)}
           ${cabecalhoSangrado}
           <div class="doc-court">Excelentíssimo senhor doutor juiz de direito</div>
           ${secoesHtml}
+          ${rodapePreviewHtml(cfg)}
         </div>
       </div>
       <div class="callout" style="margin-top:12px"><b>Sobre esta prévia.</b> O cabeçalho e as margens são exatamente os configurados ao lado. O texto das seções é de exemplo: as seções fixas já são as mesmas do documento final, só o resumo do caso e a seção "Regularidade dos descontos impugnados" mudam de acordo com a petição real de cada processo.</div>`;
@@ -1369,6 +1563,15 @@ function renderPadroes(){
     document.getElementById('camposAnexar').style.display = modo==='anexar' ? 'block' : 'none';
     atualizarPreview();
   }
+  function alternarAba(nome){
+    document.querySelectorAll('.pad-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===nome));
+    document.getElementById('padPanelAparencia').style.display = nome==='aparencia' ? 'block' : 'none';
+    document.getElementById('padPanelConteudo').style.display = nome==='conteudo' ? 'block' : 'none';
+    document.getElementById('padPanelAvancado').style.display = nome==='avancado' ? 'block' : 'none';
+  }
+  document.querySelectorAll('.pad-tab').forEach(t=>{
+    t.addEventListener('click', ()=>alternarAba(t.dataset.tab));
+  });
 
   document.getElementById('headerMode').addEventListener('change', alternarCampos);
   document.getElementById('headerLogoPos').addEventListener('change', atualizarPreview);
@@ -1378,6 +1581,14 @@ function renderPadroes(){
   ['mgTop','mgRight','mgBottom','mgLeft'].forEach(id=>{
     document.getElementById(id).addEventListener('input', atualizarPreview);
   });
+  document.getElementById('rodapeAtivo').addEventListener('change', atualizarPreview);
+  document.getElementById('rodapeTexto').addEventListener('input', atualizarPreview);
+  document.getElementById('marcaDaguaAtiva').addEventListener('change', atualizarPreview);
+  document.getElementById('marcaDaguaTexto').addEventListener('input', atualizarPreview);
+  document.getElementById('fonteSelect').addEventListener('change', atualizarPreview);
+  document.getElementById('fonteTamanho').addEventListener('change', atualizarPreview);
+  document.getElementById('espacamentoSelect').addEventListener('change', atualizarPreview);
+  document.getElementById('numeracaoSelect').addEventListener('change', atualizarPreview);
 
   document.getElementById('clientLogoInput').addEventListener('change', e=>{
     const file = e.target.files[0];
@@ -1405,6 +1616,7 @@ function renderPadroes(){
   alternarCampos();
 
   document.getElementById('saveClientBtn').addEventListener('click', ()=>{
+    if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
     const nome = document.getElementById('clientNome').value.trim();
     if(!nome){ alert('Informe o nome do cliente.'); return; }
     const editId = document.getElementById('clientEditId').value;
@@ -1448,20 +1660,53 @@ function renderPadroes(){
       document.getElementById('mgRight').value = cl.margens.right;
       document.getElementById('mgBottom').value = cl.margens.bottom;
       document.getElementById('mgLeft').value = cl.margens.left;
+      document.getElementById('rodapeAtivo').checked = !!cl.rodapeAtivo;
+      document.getElementById('rodapeTexto').value = cl.rodapeTexto || '';
+      document.getElementById('marcaDaguaAtiva').checked = !!cl.marcaDaguaAtiva;
+      document.getElementById('marcaDaguaTexto').value = cl.marcaDaguaTexto || '';
+      document.getElementById('fonteSelect').value = cl.fonte || FONTE_PADRAO.familia;
+      document.getElementById('fonteTamanho').value = cl.fonteTamanho || FONTE_PADRAO.tamanho;
+      document.getElementById('espacamentoSelect').value = cl.espacamento || FONTE_PADRAO.espacamento;
+      document.getElementById('numeracaoSelect').value = cl.numeracaoPagina || 'nenhuma';
       logoDataUrlTemp = cl.logoDataUrl || null;
       bannerDataUrlTemp = cl.headerBannerDataUrl || null;
       document.getElementById('logoPreview').innerHTML = logoDataUrlTemp ? `<img src="${logoDataUrlTemp}">` : '<span>nenhuma logo selecionada</span>';
       document.getElementById('bannerPreview').innerHTML = bannerDataUrlTemp ? `<img src="${bannerDataUrlTemp}">` : '<span>nenhuma imagem selecionada</span>';
       alternarCampos();
+      alternarAba('aparencia');
       window.scrollTo({top:0, behavior:'smooth'});
     });
   });
   body.querySelectorAll('[data-del]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
       clientes = clientes.filter(c=>c.id!==parseInt(btn.dataset.del));
       renderPadroes();
     });
   });
+}
+
+// Marca d'água (só na pré-visualização em tela/impressão; o .doc exportado usa uma versão
+// sem rotação no cabeçalho, ver nota na aba Conteúdo, porque o motor de HTML-como-.doc do
+// Word não renderiza de forma confiável um texto rotacionado via CSS transform).
+function marcaDaguaHtml(cfg){
+  if(!cfg.marcaDaguaAtiva || !cfg.marcaDaguaTexto) return '';
+  return `<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; overflow:hidden; pointer-events:none; z-index:0;">
+    <span style="transform:rotate(-30deg); font-size:64px; font-weight:700; color:rgba(0,0,0,.07); white-space:nowrap; font-family:var(--serif);">${cfg.marcaDaguaTexto.replace(/</g,'&lt;')}</span>
+  </div>`;
+}
+
+// Rodapé de texto + indicador ilustrativo de numeração de página, na pré-visualização.
+function rodapePreviewHtml(cfg){
+  if(!cfg.rodapeAtivo && (!cfg.numeracaoPagina || cfg.numeracaoPagina==='nenhuma')) return '';
+  const alinhamento = { 'rodape-esquerda':'left', 'rodape-centro':'center', 'rodape-direita':'right' }[cfg.numeracaoPagina] || 'center';
+  const numeracaoHtml = (cfg.numeracaoPagina && cfg.numeracaoPagina!=='nenhuma' && cfg.numeracaoPagina!=='cabecalho-direita')
+    ? `<div style="text-align:${alinhamento}; font-size:10px; color:var(--ink-faint); margin-top:4px;">1 de N (ilustrativo — a numeração real segue a paginação do Word)</div>`
+    : '';
+  return `<div style="position:relative; z-index:1; margin-top:28px; padding-top:8px; border-top:1px solid var(--line); font-family:var(--mono); font-size:10px; color:var(--ink-faint); text-align:center;">
+    ${cfg.rodapeAtivo && cfg.rodapeTexto ? cfg.rodapeTexto.replace(/</g,'&lt;') : ''}
+    ${numeracaoHtml}
+  </div>`;
 }
 
 // Pré-visualização HTML do cabeçalho, usada tanto no formulário quanto no card do cliente.
@@ -1490,29 +1735,72 @@ function previewCabecalho(cfg, mini){
     </div>`;
 }
 
+// Cabeçalho/rodapé reais do Word (mso-element:header/footer), usando os campos de campo
+// " PAGE "/" NUMPAGES " para numeração automática — só funcionam quando o arquivo é aberto
+// no Microsoft Word de verdade (é o motor dele que resolve os campos), não em outros
+// leitores de .doc/.html.
+function camposNumeracaoWord(){
+  return `página <span style='mso-field-code:" PAGE "'></span> de <span style='mso-field-code:" NUMPAGES "'></span>`;
+}
+function headerFooterWordHtml(cfg){
+  const numeracao = cfg.numeracaoPagina || 'nenhuma';
+  const alinhamentoRodape = { 'rodape-esquerda':'left', 'rodape-centro':'center', 'rodape-direita':'right' }[numeracao] || 'center';
+  const numeroNoRodape = ['rodape-esquerda','rodape-centro','rodape-direita'].includes(numeracao);
+  const numeroNoCabecalho = numeracao === 'cabecalho-direita';
+
+  const headerLinhas = [];
+  if(cfg.marcaDaguaAtiva && cfg.marcaDaguaTexto){
+    headerLinhas.push(`<p style='text-align:center; color:#cccccc; font-size:34pt; font-weight:bold; margin:0;'>${cfg.marcaDaguaTexto.replace(/</g,'&lt;')}</p>`);
+  }
+  if(numeroNoCabecalho){
+    headerLinhas.push(`<p style='text-align:right; font-size:9pt; color:#444; margin:0;'>${camposNumeracaoWord()}</p>`);
+  }
+  const rodapeLinhas = [];
+  if(cfg.rodapeAtivo && cfg.rodapeTexto){
+    rodapeLinhas.push(`<span>${cfg.rodapeTexto.replace(/</g,'&lt;')}</span>`);
+  }
+  if(numeroNoRodape){
+    rodapeLinhas.push(`<span>${cfg.rodapeAtivo && cfg.rodapeTexto ? ' — ' : ''}${camposNumeracaoWord()}</span>`);
+  }
+
+  const headerHtml = `<div style='mso-element:header' id=h1><p style='margin:0;'>${headerLinhas.join('')}</p></div>`;
+  const footerHtml = `<div style='mso-element:footer' id=f1><p style='text-align:${alinhamentoRodape}; font-size:9pt; color:#444; margin:0;'>${rodapeLinhas.join('')}</p></div>`;
+  return { headerHtml, footerHtml, temHeader: headerLinhas.length>0, temFooter: rodapeLinhas.length>0 };
+}
+
 function buildWordHtml(c){
   const d = c.contestacao;
   const f = c.fields;
   const cliente = clientes.find(cl => cl.id === c.clienteId);
   const margens = (cliente && cliente.margensPersonalizadas) ? cliente.margens : MARGEM_PADRAO;
   const cabecalhoHtml = cliente ? previewCabecalho(cliente, false) : '';
+  const cfgVisual = cliente || {};
+  const fonteFamilia = cfgVisual.fonte || FONTE_PADRAO.familia;
+  const fonteTamanho = cfgVisual.fonteTamanho || FONTE_PADRAO.tamanho;
+  const espacamento = cfgVisual.espacamento || FONTE_PADRAO.espacamento;
   const cnj = (f.numeroCNJ && !/não localizado/i.test(f.numeroCNJ)) ? f.numeroCNJ : 'número não identificado automaticamente, conferir antes do protocolo';
   const secoesHtml = d.secoes.map((s, i) =>
     `<h2>${i+1}. ${s.t}</h2><p>${s.b.split('\n\n').join('</p><p>')}</p>`
   ).join('\n');
+  const { headerHtml, footerHtml, temHeader, temFooter } = headerFooterWordHtml(cfgVisual);
   return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head><meta charset='utf-8'><title>Contestação</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
 <style>
-  @page Section1 { size: 21cm 29.7cm; margin: ${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm; }
+  @page Section1 {
+    size: 21cm 29.7cm; margin: ${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm;
+    ${temHeader ? 'mso-header: h1;' : ''} ${temFooter ? 'mso-footer: f1;' : ''}
+  }
   div.Section1 { page: Section1; }
-  body{font-family:"Times New Roman", serif; font-size:12pt; line-height:1.5; color:#000;}
-  h1{text-align:center; font-size:12pt; text-transform:uppercase; margin-bottom:22pt;}
-  h2{font-size:12pt; text-transform:uppercase; margin-top:18pt; margin-bottom:6pt;}
+  body{font-family:"${fonteFamilia}", serif; font-size:${fonteTamanho}pt; line-height:${espacamento}; color:#000;}
+  h1{text-align:center; font-size:${fonteTamanho}pt; text-transform:uppercase; margin-bottom:22pt;}
+  h2{font-size:${fonteTamanho}pt; text-transform:uppercase; margin-top:18pt; margin-bottom:6pt;}
   p{text-align:justify; margin-bottom:10pt;}
   .meta{font-size:10pt; color:#444; margin-bottom:18pt; font-family:Arial, sans-serif;}
 </style></head>
 <body>
+${headerHtml}
+${footerHtml}
 ${cabecalhoHtml}
 <div class="Section1" style="padding:0 ${margens.right}cm 0 ${margens.left}cm;">
   <p class="meta" style="margin-top:16pt;">Processo ${cnj}. Minuta gerada em ${new Date(d.generatedAt).toLocaleString('pt-BR')}, seção "Regularidade dos descontos" ${d.source==='ai' ? 'adaptada com apoio de IA' : 'a partir do modelo padrão'}, demais seções a partir do modelo padrão validado.${cliente ? ` Formatação aplicada: padrão ${cliente.nome}.` : ''} Revisão de advogado obrigatória antes do protocolo.</p>
@@ -1658,7 +1946,12 @@ function renderStepper(c){
   }).join('')}</div>`;
 }
 
+function avisoSomenteLeitura(){
+  alert('Modo "todas as empresas" é somente leitura. Selecione uma empresa específica no seletor do topo para editar.');
+}
+
 async function generateContestacao(id){
+  if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
   const c = cases.find(x=>x.id===id);
   if(!c || !c.fields) return;
   c.genStatus = 'gerando';
@@ -1694,7 +1987,10 @@ if(window.pdfjsLib){
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
-dropzone.addEventListener('click', ()=>fileInput.click());
+dropzone.addEventListener('click', ()=>{
+  if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
+  fileInput.click();
+});
 dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
 dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
 dropzone.addEventListener('drop', e=>{
@@ -1864,6 +2160,7 @@ function documentosApoioListHtml(c){
 }
 
 async function handleFile(file){
+  if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
   const ext = file.name.split('.').pop().toLowerCase();
   if(!['pdf','docx','txt'].includes(ext)){
     alert('Formato não suportado neste protótipo. Envie um arquivo PDF, DOCX ou TXT.');
@@ -1947,8 +2244,9 @@ function renderFila(){
         : `<span class="route-pill local"><i></i>Extração local</span>`;
     const valorCausa = c.fields && c.fields.valorCausa && !/não localizado/i.test(c.fields.valorCausa) ? c.fields.valorCausa : '';
     const acordoBadge = c.direcionador==='acordo' ? `<span class="outcome settle" style="margin-left:8px;">acordo</span>` : '';
+    const empresaBadge = c._empresaNome ? `<span class="route-pill local" style="margin-left:8px;"><i></i>${c._empresaNome}</span>` : '';
     return `<div class="q-row" data-id="${c.id}">
-      <div class="qc-tema">${tema || c.name}${acordoBadge}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
+      <div class="qc-tema">${tema || c.name}${acordoBadge}${empresaBadge}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
       <div class="qc-conf">${prazoBadgeHtml(c)}</div>
       <div>${pill}</div>
       <div class="qc-status">${statusLabel}</div>
@@ -1964,6 +2262,10 @@ function renderFila(){
   </div>`;
   body.querySelectorAll('.q-row[data-id]').forEach(row=>{
     row.addEventListener('click', ()=>{
+      // No modo agregado ("todas as empresas"), o id do processo não é único entre empresas
+      // (cada uma tem sua própria sequência), então não dá para abrir com segurança um
+      // processo específico a partir daqui — só a visão consolidada da lista.
+      if(modoSomenteLeitura) return;
       const id = parseInt(row.dataset.id);
       const c = cases.find(x=>x.id===id);
       if(c && c.status==='pronto'){ currentCaseId=id; renderGeracao(id); goView('geracao'); }
@@ -2142,6 +2444,7 @@ function renderGeracao(id){
 }
 
 function excluirProcesso(id){
+  if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
   const c = cases.find(x=>x.id===id);
   if(!c) return;
   if(!confirm(`Excluir o processo "${c.name}" da fila? Esta ação não pode ser desfeita.`)) return;
@@ -2172,6 +2475,10 @@ function renderContestacaoBlock(c){
   const cabecalhoSangrado = cabecalhoHtml
     ? `<div style="margin:-${margens.top}cm -${margens.right}cm 16px -${margens.left}cm;">${cabecalhoHtml}</div>`
     : '';
+  const cfgVisual = cliente || {};
+  const fonteFamilia = cfgVisual.fonte || FONTE_PADRAO.familia;
+  const fonteTamanho = cfgVisual.fonteTamanho || FONTE_PADRAO.tamanho;
+  const espacamento = cfgVisual.espacamento || FONTE_PADRAO.espacamento;
   return `
     <div class="view-head" style="margin-top:38px">
       <div class="kicker">Minuta de contestação, modelo padrão validado</div>
@@ -2199,10 +2506,12 @@ function renderContestacaoBlock(c){
       <div>
         <div class="preview-label">pré-visualização em escala real, folha A4 (21 x 29,7 cm), margens ${cliente && cliente.margensPersonalizadas ? 'personalizadas do cliente' : 'padrão do sistema'}</div>
         <div class="page-preview-wrap">
-          <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm;">
+          <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm; font-family:'${fonteFamilia}', serif; font-size:${fonteTamanho}pt; line-height:${espacamento};">
+            ${marcaDaguaHtml(cfgVisual)}
             ${cabecalhoSangrado}
             <div class="doc-court">Excelentíssimo senhor doutor juiz de direito</div>
             ${secoesHtml}
+            ${rodapePreviewHtml(cfgVisual)}
           </div>
         </div>
       </div>
@@ -2269,7 +2578,7 @@ function renderAnalises(){
   const rows = analysesVisiveis.map(a=>`
     <div class="case-row" data-case-id="${a.caseId}" style="cursor:pointer;" title="Abrir a minuta gerada deste processo">
       <div class="case-id">#${a.caseId}</div>
-      <div class="case-sim">${a.tema}<span class="p">${a.name}</span></div>
+      <div class="case-sim">${a.tema}${a._empresaNome ? ` · ${a._empresaNome}` : ''}<span class="p">${a.name}</span></div>
       <div style="font-size:11px; color:var(--ink-faint); font-family:var(--mono);">${a.geradoPor || '—'}</div>
       <div style="font-size:12px">${a.source==='ai' ? 'gerado por IA' : 'modelo local'}</div>
       <div><span class="outcome ${a.score>=80?'win':a.score>=60?'settle':'loss'}">${a.score}%</span></div>
@@ -2303,6 +2612,7 @@ function renderAnalises(){
   document.getElementById('exportarAnalisesBtn').addEventListener('click', exportarAnalises);
   body.querySelectorAll('.case-row[data-case-id]').forEach(row=>{
     row.addEventListener('click', ()=>{
+      if(modoSomenteLeitura) return; // id não é único entre empresas na visão agregada
       const id = parseInt(row.dataset.caseId);
       const c = cases.find(x=>x.id===id);
       if(!c) return;
@@ -2343,8 +2653,6 @@ function exportarAnalises(){
   setTimeout(()=>w.print(), 300);
 }
 
-restaurarEstado();
-renderFila();
 initAuth();
 </script>
 </body>

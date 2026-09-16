@@ -10,8 +10,9 @@ consignado e refinanciamento (linha Agibank).
 ```
 index.html          a ferramenta inteira (interface, lógica de extração, geração e padrões)
 api/anthropic.js    função serverless da Vercel, chama a API da Anthropic com a chave guardada no servidor
-api/users.js        função serverless da Vercel, login e administração de usuários (banco Postgres/Neon)
-api/package.json    marca a pasta api/ como módulos ES (api/users.js usa import/export)
+api/users.js        função serverless da Vercel, login e administração de usuários/empresas (banco Postgres/Neon)
+api/dados.js        função serverless da Vercel, fila/análises/teses/padrões, segregados por empresa (mesmo banco)
+api/package.json    marca a pasta api/ como módulos ES (api/users.js e api/dados.js usam import/export)
 middleware.js       middleware de borda da Vercel, restringe o acesso a IPs autorizados
 tests/              suíte de regressão (Playwright Test), ver seção "Testes automatizados"
 playwright.config.js configuração da suíte de testes
@@ -19,9 +20,9 @@ package.json        metadados do projeto e dependências (driver Neon, Playwrigh
 .env.example        modelo de variável de ambiente para rodar localmente
 ```
 
-Não há passo de build. `index.html` é servido como está; `api/anthropic.js` e
-`api/users.js` são detectados automaticamente pela Vercel como funções serverless;
-`middleware.js` é detectado automaticamente como middleware de borda.
+Não há passo de build. `index.html` é servido como está; `api/anthropic.js`,
+`api/users.js` e `api/dados.js` são detectados automaticamente pela Vercel como funções
+serverless; `middleware.js` é detectado automaticamente como middleware de borda.
 
 ## Por que existe uma função serverless
 
@@ -85,6 +86,48 @@ máquina, porque agora fica no banco, não mais no navegador de quem cadastrou.
 Se essas variáveis não estiverem configuradas, `api/users.js` responde com um erro
 claro ("Banco de usuários não configurado...") em vez de falhar silenciosamente.
 
+## Multi-empresa (multi-tenant): cada empresa só vê os próprios dados
+
+Pensado para o cenário de vender o sistema a mais de uma empresa/cliente: cada uma só
+enxerga e edita os próprios processos, teses e padrões de cliente, nunca os de outra.
+Dois papéis:
+
+- **Admin master** (`papel = 'admin'`): enxerga e administra todas as empresas —
+  cadastra empresas, cadastra usuários e escolhe a empresa de cada um, e pode alternar
+  a própria visão entre uma empresa específica ou "todas as empresas" (agregado).
+- **Usuário de empresa** (`papel = 'operador'`): só vê e só grava os dados da própria
+  empresa (`empresa_id`, gravado no token de sessão assinado no login). Não existe hoje
+  um papel intermediário de "admin da própria empresa" — só o admin master cadastra
+  usuários e empresas (decisão explícita, para manter o modelo simples nesta fase).
+
+Como funciona, tecnicamente:
+
+- `api/users.js` ganhou a tabela `empresas` e a coluna `users.empresa_id`. O admin
+  master tem sua própria empresa reservada ("Interno (admin master)"), criada
+  automaticamente no primeiro uso — mesmo ele precisa de uma empresa "dona" dos
+  próprios dados de teste.
+- `api/dados.js` (nova função) passou a guardar fila, análises, Banco de teses e
+  Padrões por cliente num Postgres compartilhado, numa tabela `estado_empresa` (uma
+  linha por empresa, com todo o estado num campo JSONB). Antes, esses dados viviam só
+  no `localStorage` do navegador — sem checagem alguma de quem podia ver o quê. Agora
+  a segregação é aplicada no servidor, a partir do `empresa_id` do token de sessão, não
+  apenas na tela.
+- No topo da tela, o admin master vê um seletor de empresa (some para usuários
+  comuns). Ao escolher "Todas as empresas", a tela vira **somente leitura**: dá para
+  ver a fila, teses e padrões de todo mundo, com o nome da empresa em cada linha, mas
+  não dá para enviar petição, gerar minuta, nem editar teses/padrões — porque não
+  haveria uma única empresa dona da gravação. Para editar, escolha uma empresa
+  específica no seletor.
+- Limitação conhecida: o token de sessão é autocontido (ver seção de limitações mais
+  abaixo) e carrega o `empresa_id` do momento do login. Se o admin master mudar a
+  empresa de um usuário já logado, isso só passa a valer no próximo login dele.
+- Migração seguro para bancos que já tinham usuários antes deste recurso existir:
+  ao adicionar a coluna `empresa_id`, usuários antigos ficariam sem empresa (o que os
+  bloquearia). `api/users.js` corrige isso sozinho, a cada chamada: garante que existe
+  uma empresa "Interno (admin master)" e move para ela qualquer usuário sem empresa
+  associada. Não é preciso rodar nada manualmente após o deploy; só reatribuir depois,
+  pela aba Admin, quem precisar ficar numa empresa diferente.
+
 ## Restrição de acesso por IP
 
 Enquanto o sistema estiver em fase de teste, o acesso ao site inteiro (páginas e
@@ -142,12 +185,12 @@ vercel dev
 Suíte de regressão com Playwright Test:
 
 - `tests/app.spec.js`: fluxos de login e troca de senha obrigatória, administração
-  de usuários, segregação de acesso por operador, geração de minuta com prazo,
-  exclusão de processo, Banco de teses, direcionador Defesa/Acordo, tradução de
-  referência, e responsividade básica. Roda contra o
+  de usuários e empresas, segregação de acesso por operador e por empresa (multi-tenant),
+  geração de minuta com prazo, exclusão de processo, Banco de teses, direcionador
+  Defesa/Acordo, tradução de referência, e responsividade básica. Roda contra o
   próprio `index.html` sem precisar de banco real nem `ANTHROPIC_API_KEY` (pdf.js e
-  mammoth.js viram um stub; `/api/users` é simulado em memória, com o mesmo formato
-  de request/resposta da função de verdade).
+  mammoth.js viram um stub; `/api/users` e `/api/dados` são simulados em memória, com
+  o mesmo formato de request/resposta das funções de verdade).
 - `tests/users-crypto.spec.js`: teste de unidade das partes de segurança de
   `api/users.js` de verdade (hash de senha com scrypt, token de sessão assinado por
   HMAC, rejeição de token adulterado/expirado) — sem precisar de Postgres para
@@ -197,9 +240,10 @@ na tela, e um estouro de layout em telas estreitas causado por um item de grid s
   aba do navegador não é fechada (ver limitação abaixo).
 - Opção de excluir um processo da fila, tanto na lista quanto dentro da tela de
   Geração.
-- Fila, análises, clientes e Banco de teses sobrevivem a uma atualização de
-  página (F5): ficam salvos em `localStorage`, por navegador (ver "Limitação
-  atual mais importante").
+- Fila, análises, clientes e Banco de teses ficam salvos num banco compartilhado
+  (Postgres, `api/dados.js`), segregados por empresa — sobrevivem a uma atualização
+  de página e a uma troca de máquina/navegador, e uma empresa nunca vê os dados de
+  outra (ver seção "Multi-empresa").
 - Opção de baixar a minuta traduzida por IA para inglês, espanhol ou francês,
   como cópia de referência: o arquivo carrega um aviso, no próprio `.doc`, de que
   não é peça válida para protocolo — a peça oficial é sempre a versão em
@@ -218,12 +262,18 @@ na tela, e um estouro de layout em telas estreitas causado por um item de grid s
   máquina.
   A verificação de senha e a checagem de papel de admin acontecem no servidor,
   com um token de sessão assinado por HMAC (expira em 12h).
-- Aba Admin (visível só para usuários com papel de administrador) para cadastrar
-  novos usuários, redefinir senha e alternar papel entre operador e admin.
+- Aba Admin (visível só para o admin master) para cadastrar empresas, cadastrar
+  novos usuários (atribuindo a empresa de cada um), redefinir senha e alternar
+  papel entre usuário de empresa e admin master.
 - Restrição de acesso por IP na borda da Vercel (`middleware.js`), aplicada ao
   site inteiro antes de qualquer página ou função ser servida.
-- Segregação de fila por operador: quem não é admin só vê os processos que
-  carregou; admin alterna entre "todos" e "só os meus" na aba Fila.
+- Segregação por empresa (multi-tenant): cada empresa só vê e edita os próprios
+  processos, teses e padrões; o admin master alterna entre uma empresa específica
+  e "todas as empresas" (agregado, só leitura) num seletor no topo da tela (ver
+  seção "Multi-empresa").
+- Segregação de fila por operador dentro da mesma empresa: quem não é admin master
+  só vê os processos que carregou; admin master, quando dentro de uma empresa
+  específica, alterna entre "todos" e "só os meus" na aba Fila.
 - Controle de prazo processual (estimativa): informando a data de citação e o
   prazo em dias úteis na aba Geração, o sistema calcula a data-limite e mostra
   quantos dias úteis faltam, com aviso visual quando o prazo está próximo ou
@@ -272,16 +322,14 @@ em volume, e avaliar se algum campo precisa ser mascarado antes do envio.
 
 ## Limitação atual mais importante
 
-Usuários (login/admin) já ficam num banco de verdade (ver seção acima). O resto do
-estado — processos carregados, contestações geradas, análises, clientes cadastrados,
-Banco de teses — fica salvo em `localStorage`, por navegador: sobrevive a uma
-atualização de página (F5), mas não é compartilhado entre máquinas nem entre
-navegadores diferentes do mesmo operador. Os documentos de apoio anexados a um
-processo (aba Geração) são uma exceção: o arquivo em si (blob) fica só em memória
-da aba, não é salvo no `localStorage` (inviabilizaria o espaço disponível rapidamente),
-então precisam ser reanexados depois de um F5. Mover tudo isso para um banco
-compartilhado (ex.: o mesmo Postgres dos usuários) é o próximo passo natural,
-quando as regras de negócio estiverem mais validadas com uso real.
+Usuários, empresas e o restante do estado de trabalho (processos, análises, clientes,
+Banco de teses) já ficam num banco de verdade, segregado por empresa (ver seção
+"Multi-empresa"). Os documentos de apoio anexados a um processo (aba Geração) são a
+exceção que falta: o arquivo em si (blob) fica só em memória da aba, não é salvo no
+banco (o formato JSONB usado hoje para o resto do estado não é adequado para arquivos
+binários de qualquer tamanho), então precisam ser reanexados depois de um F5. Guardar
+esses arquivos de verdade (ex.: Vercel Blob Storage ou similar) é o próximo passo
+natural nessa frente.
 
 Mesmo com o banco de usuários, isto ainda não é autenticação de nível bancário: não
 há limite de tentativas de login (proteção contra força bruta), nem rotação/revogação
@@ -299,11 +347,13 @@ sistema não impede mais o download de uma minuta não revisada.
 
 ## Próximos passos sugeridos
 
-1. Persistência real de `cases`, `analyses`, `clientes` e `teses` num banco
-   compartilhado (ex.: o mesmo Postgres dos usuários), em vez de `localStorage`
-   por navegador — planejado para depois de validar as regras de negócio com uso
-   real (ver "Limitação atual mais importante"). Inclui também guardar os
-   documentos de apoio de verdade (hoje só ficam em memória da aba).
+1. Guardar de verdade os documentos de apoio anexados a um processo (hoje só ficam
+   em memória da aba do navegador, ver "Limitação atual mais importante") — provavelmente
+   um serviço de armazenamento de arquivos (ex.: Vercel Blob Storage), não o mesmo
+   JSONB usado para o restante do estado.
+   Um papel intermediário de "admin da própria empresa" (hoje só o admin master
+   cadastra usuários/empresas) também fica para uma próxima rodada, se granularidade
+   de administração por empresa vier a ser necessária.
 2. Ampliar a biblioteca de teses (`TEMA_PRODUTOS` em `index.html`) à medida que
    mais contestações reais forem validadas, seguindo o mesmo processo usado para
    os seis temas atuais: ler peças reais, extrair o padrão comum, e só então
