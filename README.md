@@ -187,8 +187,8 @@ Suíte de regressão com Playwright Test:
 
 - `tests/app.spec.js`: fluxos de login e troca de senha obrigatória, administração
   de usuários e empresas, segregação de acesso por operador e por empresa (multi-tenant),
-  geração de minuta com prazo, exclusão de processo, Banco de teses, direcionador
-  Defesa/Acordo, tradução de referência, e responsividade básica. Roda contra o
+  geração de minuta com prazo, exclusão de processo, Banco de teses,
+  tradução de referência, e responsividade básica. Roda contra o
   próprio `index.html` sem precisar de banco real nem `ANTHROPIC_API_KEY` (pdf.js e
   mammoth.js viram um stub; `/api/users` e `/api/dados` são simulados em memória, com
   o mesmo formato de request/resposta das funções de verdade).
@@ -261,10 +261,6 @@ convenção de documento jurídico, não a marca.
 - Painel "Defesa aplicada por pedido" na minuta gerada: para cada pedido
   identificado na petição (via IA), mostra se uma tese do Banco de teses foi
   aplicada ou se seguiu o modelo padrão do tema.
-- Direcionador "Defesa ou Acordo" na tela de Geração: no caminho de acordo, o
-  sistema não gera nenhuma minuta (os termos de um acordo dependem de negociação
-  real, não são algo para a IA inventar), só registra o encaminhamento e uma
-  observação do operador.
 - Upload de documentos de apoio (contratos, comprovantes, telas de sistema) além
   da petição inicial, por processo; ficam disponíveis para reabrir enquanto a
   aba do navegador não é fechada (ver limitação abaixo).

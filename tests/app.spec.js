@@ -540,21 +540,6 @@ test.describe('geração de contestação', () => {
     expect(modelo.length).toBeGreaterThan(20);
   });
 
-  test('direcionador "acordo" oculta a geração de contestação e registra o encaminhamento', async ({ page }) => {
-    await loginComoAdminPadrao(page);
-    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
-    await fc.setFiles(PETICAO_TESTE);
-    await page.click('.q-row[data-id]');
-    await page.check('input[name="direcionador"][value="acordo"]');
-    await expect(page.locator('#registrarAcordoBtn')).toBeVisible();
-    await page.fill('#acordoObsInput', 'Negociação em andamento com o autor.');
-    await page.click('#registrarAcordoBtn');
-    await expect(page.locator('#geracaoBody')).toContainText('Registrado em');
-
-    await page.click('[data-view="fila"]');
-    await expect(page.locator('.q-row[data-id]')).toContainText('acordo');
-  });
-
   test('baixar tradução de referência gera o arquivo e mantém o aviso de que não vale para protocolo', async ({ page }) => {
     await page.route('**/api/anthropic', async route => {
       const body = route.request().postDataJSON();
