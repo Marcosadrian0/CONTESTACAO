@@ -2166,6 +2166,9 @@ function heuristicExtract(text){
     numeroCNJ: cnjMatch ? cnjMatch[0] : 'não localizado no texto',
     valorCausa: valorMatch ? valorMatch[0] : 'não localizado no texto',
     tema,
+    // Causa raiz (motivo central da demanda) exige entendimento de contexto, não dá para
+    // adivinhar por regex com confiança — só a extração por IA preenche este campo.
+    causaRaiz: 'não localizado automaticamente',
     autor: autorMatch ? autorMatch[1].trim() : 'não localizado automaticamente',
     reu: reuMatch ? reuMatch[1].trim() : 'não localizado automaticamente',
     pedeTutela,
@@ -2477,6 +2480,7 @@ function renderGeracao(id){
         <div class="ev-card"><span class="ev-type">réu</span><div class="ev-title">${f.reu}</div>${campoAlertaHtml(f.reu)}</div>
         <div class="ev-card"><span class="ev-type">valor da causa</span><div class="ev-title">${f.valorCausa}</div>${campoAlertaHtml(f.valorCausa)}</div>
         <div class="ev-card"><span class="ev-type">tema sugerido</span><div class="ev-title">${f.tema}</div><div class="ev-body">Sugestão automática. Revisar antes de prosseguir.</div>${campoAlertaHtml(f.tema)}</div>
+        <div class="ev-card"><span class="ev-type">causa raiz</span><div class="ev-title">${f.causaRaiz || 'não localizado automaticamente'}</div><div class="ev-body">Motivo central da demanda, só identificado quando a extração é feita por IA. Usado para casar com o Banco de teses padrão do sistema.</div>${campoAlertaHtml(f.causaRaiz)}</div>
         <div class="ev-card">
           <span class="ev-type">prazo processual (estimativa)</span>
           <div class="f-row4" style="grid-template-columns:1fr 90px; margin-top:8px; margin-bottom:6px;">
