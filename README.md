@@ -383,19 +383,23 @@ sistema não impede mais o download de uma minuta não revisada.
    o documento de referência recebido do cliente (`documento-completo-motor-
    contestacoesv5.docx`). É uma mudança grande na função `montarSecoes()` e no
    checklist de qualidade, por isso a proposta é em etapas, não de uma vez:
-   1. Adicionar campo de causa raiz na extração por IA (hoje só extrai
-      número/autor/réu/valor/tema/resumo/pedidos) — pré-requisito para o passo 3.
+   1. ✅ Adicionar campo de causa raiz na extração por IA (concluído — o campo
+      `causaRaiz` é extraído junto com número/autor/réu/valor/tema/resumo/pedidos,
+      restrito às 43 opções reais do banco de teses, com "Outros" como fallback).
    2. Reescrever `montarSecoes()` para as 15 seções, mantendo o texto atual de
       `BLOCOS_FIXOS` realocado nas seções correspondentes (mérito, impugnação,
       provas), sem quebrar os testes existentes.
-   3. Ligar as "teses padrão do sistema" (`data/teses-sistema.json`) e as teses
-      próprias de cada empresa à seção de mérito por causa raiz, substituindo o
-      casamento atual por produto/pedido.
+   3. ✅ Ligar as "teses padrão do sistema" (`data/teses-sistema.json`) à seção de
+      mérito, casando por causa raiz **e** produto (concluído, ainda dentro da
+      estrutura de seções atual — antes das 15 seções do passo 2). Como os dois
+      bancos usam vocabulários de produto diferentes, foi criado um mapa manual
+      `TEMA_PARA_PRODUTO_SISTEMA` (nos 6 temas que o sistema já reconhecia hoje;
+      os outros 7 produtos do banco de 286 teses ainda não têm tema correspondente
+      no sistema, então ficam só como referência de leitura). As teses próprias de
+      cada empresa continuam casando por produto/pedido, sem mudança.
    4. Adicionar o seletor de variação do modelo (completo/objetivo/bancário e
       consumerista) e o módulo de reconvenção, condicionados a informação real do
       caso, nunca inventados.
-   Enquanto isso não acontece, o Banco de teses padrão do sistema fica disponível
-   só como referência de leitura (ver "Teses padrão do sistema" acima).
 2. Guardar de verdade os documentos de apoio anexados a um processo (hoje só ficam
    em memória da aba do navegador, ver "Limitação atual mais importante") — provavelmente
    um serviço de armazenamento de arquivos (ex.: Vercel Blob Storage), não o mesmo

@@ -1186,6 +1186,33 @@ function textoTutela(){
   return 'Quanto ao pedido de tutela de urgência, ausentes os requisitos legais: a probabilidade do direito é afastada pela prova documental da contratação apresentada nesta defesa (ver seção Prova da contratação), e inexiste perigo de dano apto a justificar a medida.';
 }
 
+// Ponte entre os 6 temas (produto financeiro) do sistema e os 13 produtos do banco de
+// 286 teses (data/teses-sistema.json) — os dois vieram de fontes diferentes e não usam
+// os mesmos nomes. Mapeados manualmente, com base no texto de cada causa raiz no banco
+// de teses (ex.: a descrição de "Cartão Consignado" já fala da natureza rotativa e da
+// reserva de margem, cobrindo o que o sistema trata separadamente como RMC/RCC). Temas
+// sem entrada aqui (ou causas raiz sem par nesse produto) simplesmente não recebem
+// nenhuma tese do sistema — nunca inventamos uma correspondência.
+const TEMA_PARA_PRODUTO_SISTEMA = {
+  'Cartão de crédito consignado': 'Cartão Consignado',
+  'RMC (Reserva de Margem Consignável)': 'Cartão Consignado',
+  'RCC (Reserva de Cartão Consignado)': 'Cartão Consignado',
+  'Empréstimo consignado': 'Empréstimo Consignado',
+  'Refinanciamento de empréstimo consignado': 'Empréstimo Consignado',
+  'Seguro (prestamista ou de vida)': 'Seguro',
+};
+
+// Teses do banco padrão do sistema (286) que se aplicam ao mérito deste caso: precisa
+// bater produto (via mapa acima) E causa raiz (mesmo texto nas duas fontes). Exige que
+// carregarTesesSistema() já tenha rodado antes (ver generateContestacao); se a causa raiz
+// não foi identificada pela IA, não há como buscar com segurança e a função retorna vazio.
+function tesesSistemaDoMerito(tema, causaRaiz){
+  if(!tesesSistema || !causaRaiz || /não localizado/i.test(causaRaiz)) return [];
+  const produtoSistema = TEMA_PARA_PRODUTO_SISTEMA[tema];
+  if(!produtoSistema) return [];
+  return tesesSistema.filter(t => t.produto === produtoSistema && t.causaRaiz === causaRaiz);
+}
+
 // Monta a lista de seções da minuta em ordem fixa, pulando as que não se aplicam.
 // A numeração sequencial e a ausência de título repetido são garantidas pela própria função, não por checagem manual.
 function montarSecoes(c){
@@ -1215,6 +1242,13 @@ function montarSecoes(c){
 
   tesesDoTema(f.tema).forEach(t=>{
     secoes.push({ t: `Tese cadastrada: ${t.pedido}`, b: t.modeloTese });
+  });
+
+  tesesSistemaDoMerito(f.tema, f.causaRaiz).forEach(t=>{
+    let corpo = t.teseDefensiva;
+    if(t.provasMinimas) corpo += '\n\nProvas mínimas recomendadas: ' + t.provasMinimas;
+    if(t.pedidosSubsidiarios) corpo += '\n\nPedidos subsidiários recomendados: ' + t.pedidosSubsidiarios;
+    secoes.push({ t: `Tese padrão do sistema: ${t.causaRaiz}`, b: corpo });
   });
 
   secoes.push({ t: 'Considerações finais', b: BLOCOS_FIXOS.consideracoesFinais });
@@ -2086,6 +2120,7 @@ async function generateContestacao(id){
   if(aiTexto){ f.regularidadeTexto = aiTexto; source = 'ai'; }
   else { f.regularidadeTexto = lib.regularidade; }
 
+  await carregarTesesSistema(); // garante o banco de 286 teses disponível para tesesSistemaDoMerito()
   const secoes = montarSecoes(c);
   const quality = checkQuality(f, secoes);
 
