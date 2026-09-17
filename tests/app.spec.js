@@ -357,6 +357,29 @@ test.describe('geração de contestação', () => {
     await expect(page.locator('#prazoResultado')).toContainText('d úteis');
   });
 
+  test('causa raiz extraída por IA aparece nos campos extraídos', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.route('**/api/anthropic', async route => {
+      const body = route.request().postDataJSON();
+      if (body.task === 'extract') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          text: JSON.stringify({
+            numeroCNJ: '1002793-96.2026.8.13.0016', autor: 'João da Silva', reu: 'Banco Agibank S.A.',
+            valorCausa: 'R$ 12.500,00', tema: 'Empréstimo consignado', causaRaiz: 'Cobrança indevida',
+            resumo: 'Resumo de teste.', pedidos: ['Repetição de indébito'],
+          }),
+          usage: { input_tokens: 50, output_tokens: 30 },
+        }) });
+      } else {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'not mocked' }) });
+      }
+    });
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc.setFiles(PETICAO_TESTE);
+    await page.click('.q-row[data-id]');
+    await expect(page.locator('#geracaoBody')).toContainText('Cobrança indevida');
+  });
+
   test('clicar em uma linha de Análises reabre a minuta gerada daquele processo', async ({ page }) => {
     await gerarContestacao(page);
     await page.click('[data-view="analises"]');
