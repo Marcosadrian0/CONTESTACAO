@@ -221,6 +221,14 @@ ferramenta que a gera — a mesma distinção vale para o `.doc` exportado, cuja
 padrão (Times New Roman, configurável por cliente em Padrões por cliente) segue
 convenção de documento jurídico, não a marca.
 
+Navegação em barra lateral fixa à esquerda (`.shell` > `.side` + `.main-col`),
+seguindo o layout de referência do protótipo interativo recebido do cliente
+(`motor-contestacoesv05_2.html`): marca e abas (Fila, Geração, Banco de teses,
+Análises, Padrões por cliente, Admin) na lateral, com indicador de aba ativa;
+seletor de empresa, selo "dados salvos" e usuário logado no rodapé da lateral;
+alternância de tema no topo do conteúdo principal. Em telas estreitas (≤980px),
+a lateral vira uma faixa horizontal no topo, com os mesmos elementos.
+
 ## Estado atual (o que já funciona)
 
 - Upload de petição inicial em PDF, DOCX ou TXT, com leitura de texto real via
