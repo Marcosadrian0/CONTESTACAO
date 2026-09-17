@@ -1253,8 +1253,10 @@ function tesesSistemaDoMerito(tema, causaRaiz){
 // extrai hoje (vara, comarca, tipo de pessoa, CPF/CNPJ e endereço do réu) — inventar esses
 // campos seria pior do que deixá-los para o advogado completar no cabeçalho, como já acontece.
 // Pelo mesmo motivo, ficam de fora "Prejudiciais de mérito" (prescrição/decadência, sem dado
-// extraído), "Fechamento e assinatura" (nome do advogado/OAB/cidade não são coletados) e
-// "Reconvenção" (pedido independente, fora do escopo desta minuta de defesa).
+// extraído) e "Fechamento e assinatura" (nome do advogado/OAB/cidade não são coletados).
+// "Reconvenção" entra como seção condicional só quando o operador escreve o texto manualmente
+// (c.reconvencaoTexto) — é um pedido independente contra a parte autora, a ferramenta nunca
+// fabrica esse conteúdo.
 // A numeração sequencial e a ausência de título repetido são garantidas pela própria função, não por checagem manual.
 function montarSecoes(c){
   const f = c.fields;
@@ -1266,10 +1268,17 @@ function montarSecoes(c){
   secoes.push({ t: 'Síntese da demanda', b: f.resumo });
   secoes.push({ t: 'Realidade dos fatos', b: textoRealidadeDosFatos(f) });
 
+  // Variação "Completo" (padrão): a seção sempre aparece, com a nota de ausência quando não
+  // há preliminar real — texto do próprio modelo-base de referência do cliente, não inventado
+  // aqui. Variação "Objetivo" (Juizado Especial): omite a seção por completo quando vazia,
+  // para uma minuta mais enxuta — mesmo comportamento que este sistema já tinha antes desta
+  // etapa. Nenhuma variação afasta uma preliminar real (ex.: tutela de urgência) quando existe.
   const itensPreliminar = [];
   if(f.pedeTutela) itensPreliminar.push(textoTutela());
   if(itensPreliminar.length){
     secoes.push({ t: 'Preliminares processuais', b: itensPreliminar.join('\n\n') });
+  } else if(c.variacaoModelo !== 'objetivo'){
+    secoes.push({ t: 'Preliminares processuais', b: 'Não foram identificadas questões processuais preliminares capazes de impedir ou modificar o exame do mérito.' });
   }
 
   secoes.push({ t: 'Mérito: enquadramento da controvérsia', b:
@@ -1302,6 +1311,10 @@ function montarSecoes(c){
   let pedidosBody = BLOCOS_FIXOS.consideracoesFinais;
   if(pedidosSubsidiariosExtras.length) pedidosBody += '\n\nPedidos subsidiários recomendados para esta causa: ' + pedidosSubsidiariosExtras.join('; ') + '.';
   secoes.push({ t: 'Pedidos e conclusão da defesa', b: pedidosBody });
+
+  if(c.reconvencaoTexto && c.reconvencaoTexto.trim()){
+    secoes.push({ t: 'Reconvenção', b: c.reconvencaoTexto.trim() });
+  }
 
   return secoes;
 }
@@ -2384,6 +2397,8 @@ async function handleFile(file){
     baixadoEm: null,
     direcionador: 'defesa',
     acordoObs: '', acordoRegistradoEm: null,
+    variacaoModelo: 'completo',
+    reconvencaoTexto: '',
   };
   cases.unshift(caseObj);
   renderFila();
@@ -2589,6 +2604,19 @@ function renderGeracao(id){
           <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
           <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
         </div>
+        <div class="ev-card">
+          <span class="ev-type">variação do modelo</span>
+          <select id="variacaoModeloSelect" class="f-input" style="margin:8px 0 0;">
+            <option value="completo" ${(c.variacaoModelo||'completo')==='completo'?'selected':''}>Completo (justiça comum, casos complexos)</option>
+            <option value="objetivo" ${c.variacaoModelo==='objetivo'?'selected':''}>Objetivo (Juizado Especial, causa documental simples)</option>
+          </select>
+          <div class="ev-body">No modelo Completo, a seção "Preliminares processuais" sempre aparece, com a nota de que não há preliminares identificadas quando for o caso. No Objetivo, a seção só aparece quando há preliminar real (ex.: tutela de urgência), para uma minuta mais enxuta.</div>
+        </div>
+        <div class="ev-card">
+          <span class="ev-type">reconvenção (opcional)</span>
+          <textarea class="f-input" id="reconvencaoInput" rows="3" placeholder="Preencha só se a instituição ré pretende apresentar reconvenção. O texto entra, exatamente como escrito aqui, como seção final da minuta." style="margin-top:8px;">${c.reconvencaoTexto || ''}</textarea>
+          <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Pedido independente contra a parte autora — a ferramenta nunca redige uma reconvenção sozinha, precisa ser escrita por um advogado. Deixe em branco para não incluir esta seção.</div>
+        </div>
         <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="width:100%; justify-content:center; margin-top:4px;">${genLabel}</button>
       </div>
     </div>
@@ -2614,6 +2642,14 @@ function renderGeracao(id){
   }
   document.getElementById('clienteSelect').addEventListener('change', e=>{
     c.clienteId = e.target.value ? parseInt(e.target.value) : null;
+    salvarEstado();
+  });
+  document.getElementById('variacaoModeloSelect').addEventListener('change', e=>{
+    c.variacaoModelo = e.target.value;
+    salvarEstado();
+  });
+  document.getElementById('reconvencaoInput').addEventListener('change', e=>{
+    c.reconvencaoTexto = e.target.value;
     salvarEstado();
   });
   document.getElementById('docsApoioInput').addEventListener('change', e=>{
