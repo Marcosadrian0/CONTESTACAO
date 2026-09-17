@@ -386,12 +386,10 @@ sistema não impede mais o download de uma minuta não revisada.
    1. ✅ Adicionar campo de causa raiz na extração por IA (concluído — o campo
       `causaRaiz` é extraído junto com número/autor/réu/valor/tema/resumo/pedidos,
       restrito às 43 opções reais do banco de teses, com "Outros" como fallback).
-   2. Reescrever `montarSecoes()` para as 15 seções, mantendo o texto atual de
-      `BLOCOS_FIXOS` realocado nas seções correspondentes (mérito, impugnação,
-      provas), sem quebrar os testes existentes.
+   2. ✅ Reescrever `montarSecoes()` para a nomenclatura e ordem das 15 seções do
+      CPC (concluído, dentro do que a ferramenta já cobre — ver detalhe abaixo).
    3. ✅ Ligar as "teses padrão do sistema" (`data/teses-sistema.json`) à seção de
-      mérito, casando por causa raiz **e** produto (concluído, ainda dentro da
-      estrutura de seções atual — antes das 15 seções do passo 2). Como os dois
+      mérito, casando por causa raiz **e** produto (concluído). Como os dois
       bancos usam vocabulários de produto diferentes, foi criado um mapa manual
       `TEMA_PARA_PRODUTO_SISTEMA` (nos 6 temas que o sistema já reconhecia hoje;
       os outros 7 produtos do banco de 286 teses ainda não têm tema correspondente
@@ -400,6 +398,29 @@ sistema não impede mais o download de uma minuta não revisada.
    4. Adicionar o seletor de variação do modelo (completo/objetivo/bancário e
       consumerista) e o módulo de reconvenção, condicionados a informação real do
       caso, nunca inventados.
+
+   **Detalhe do passo 2 (concluído):** `montarSecoes()` agora segue a ordem e a
+   nomenclatura das 15 seções do CPC (arts. 335 a 342) no que a ferramenta já
+   cobre: Apresentação e tempestividade (nova — usa a data de citação/prazo já
+   calculados na tela de Geração, com aviso honesto quando a data ainda não foi
+   informada), Síntese da demanda, Realidade dos fatos (nova, parágrafo-ponte sem
+   fatos inventados), Preliminares processuais, Mérito (enquadramento,
+   regularidade, biometria, presunção de assinatura, ônus da prova, teses
+   cadastradas e teses padrão do sistema), Impugnação específica dos pedidos
+   (repetição, danos morais, compensação, apuração do indébito), Jurisprudência
+   aplicável (nova, consolida em quadro-síntese só as citações já verificadas —
+   nenhuma citação nova), Provas (com as provas mínimas recomendadas pela tese do
+   sistema, quando houver correspondência) e Pedidos e conclusão da defesa (com os
+   pedidos subsidiários recomendados pela tese do sistema, quando houver).
+   **Ficam de fora, deliberadamente:** Endereçamento, Identificação do processo e
+   Qualificação do réu (cobertos de forma leve pelo preâmbulo fixo do próprio
+   documento gerado, não pela lista de seções — exigiriam vara, comarca, tipo de
+   pessoa, CPF/CNPJ e endereço do réu, dados que a ferramenta não extrai hoje),
+   Prejudiciais de mérito (prescrição/decadência, sem dado extraído para
+   sustentar), Fechamento e assinatura (nome do advogado, OAB e cidade não são
+   coletados) e Reconvenção (fora do escopo desta minuta de defesa). Nenhum desses
+   é fabricado — ficam para o advogado completar, como já acontecia antes desta
+   mudança.
 2. Guardar de verdade os documentos de apoio anexados a um processo (hoje só ficam
    em memória da aba do navegador, ver "Limitação atual mais importante") — provavelmente
    um serviço de armazenamento de arquivos (ex.: Vercel Blob Storage), não o mesmo
