@@ -2395,8 +2395,6 @@ async function handleFile(file){
     criadoEm: new Date(),
     dataCitacao: null, prazoDias: 15, dataLimite: null,
     baixadoEm: null,
-    direcionador: 'defesa',
-    acordoObs: '', acordoRegistradoEm: null,
     variacaoModelo: 'completo',
     reconvencaoTexto: '',
   };
@@ -2467,10 +2465,9 @@ function renderFila(){
         ? `<span class="route-pill ai"><i></i>Extração por IA</span>`
         : `<span class="route-pill local"><i></i>Extração local</span>`;
     const valorCausa = c.fields && c.fields.valorCausa && !/não localizado/i.test(c.fields.valorCausa) ? c.fields.valorCausa : '';
-    const acordoBadge = c.direcionador==='acordo' ? `<span class="outcome settle" style="margin-left:8px;">acordo</span>` : '';
     const empresaBadge = c._empresaNome ? `<span class="route-pill local" style="margin-left:8px;"><i></i>${c._empresaNome}</span>` : '';
     return `<div class="q-row" data-id="${c.id}">
-      <div class="qc-tema">${tema || c.name}${acordoBadge}${empresaBadge}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
+      <div class="qc-tema">${tema || c.name}${empresaBadge}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
       <div class="qc-conf">${prazoBadgeHtml(c)}</div>
       <div>${pill}</div>
       <div class="qc-status">${statusLabel}</div>
@@ -2548,22 +2545,7 @@ function renderGeracao(id){
       <div class="status-chip ${c.source==='ai'?'ai':'local'}"><i></i>${sourceLabel}</div>
       ${f.pedeTutela ? '<div class="status-chip local"><i></i>tutela de urgência identificada na inicial, seção de preliminares incluída automaticamente</div>' : ''}
     </div>
-    <div class="ev-card" style="margin-bottom:16px;">
-      <span class="ev-type">direcionador do caso</span>
-      <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap;">
-        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="radio" name="direcionador" value="defesa" ${c.direcionador!=='acordo'?'checked':''}> Defesa (gerar contestação)</label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="radio" name="direcionador" value="acordo" ${c.direcionador==='acordo'?'checked':''}> Acordo (não gerar contestação, registrar encaminhamento)</label>
-      </div>
-      <div class="ev-body" style="margin-top:6px;">Define o caminho do processo. No caminho de acordo, o sistema não redige nenhuma proposta, já que os termos de um acordo dependem de negociação real; apenas registra o encaminhamento e a observação do operador.</div>
-    </div>
-    ${c.direcionador==='acordo' ? `
-    <div class="ev-card" style="margin-bottom:16px;">
-      <span class="ev-type">encaminhamento para acordo</span>
-      <textarea class="f-input" id="acordoObsInput" rows="3" placeholder="Observações sobre a negociação (opcional)" style="margin-top:8px;">${c.acordoObs || ''}</textarea>
-      <button class="mini-btn" id="registrarAcordoBtn" style="margin-top:6px;">${c.acordoRegistradoEm ? 'Atualizar registro de acordo' : 'Registrar encaminhamento para acordo'}</button>
-      ${c.acordoRegistradoEm ? `<div class="ev-body" style="margin-top:6px; color:var(--green);">Registrado em ${new Date(c.acordoRegistradoEm).toLocaleString('pt-BR')}</div>` : ''}
-    </div>` : ''}
-    <div class="gen-shell" style="${c.direcionador==='acordo' ? 'opacity:0.55; pointer-events:none;' : ''}">
+    <div class="gen-shell">
       <div class="doc-frame">
         <div class="doc-court">Petição inicial, texto extraído do arquivo</div>
         <h5>Resumo</h5>
@@ -2624,22 +2606,6 @@ function renderGeracao(id){
   document.getElementById('backToFila').addEventListener('click', ()=>{ goView('fila'); renderFila(); });
   document.getElementById('excluirProcessoBtn').addEventListener('click', ()=>excluirProcesso(id));
   document.getElementById('genBtn').addEventListener('click', ()=>generateContestacao(id));
-  body.querySelectorAll('input[name="direcionador"]').forEach(radio=>{
-    radio.addEventListener('change', e=>{
-      c.direcionador = e.target.value;
-      salvarEstado();
-      renderGeracao(id);
-    });
-  });
-  const registrarAcordoBtn = document.getElementById('registrarAcordoBtn');
-  if(registrarAcordoBtn){
-    registrarAcordoBtn.addEventListener('click', ()=>{
-      c.acordoObs = document.getElementById('acordoObsInput').value;
-      c.acordoRegistradoEm = new Date();
-      salvarEstado();
-      renderGeracao(id);
-    });
-  }
   document.getElementById('clienteSelect').addEventListener('change', e=>{
     c.clienteId = e.target.value ? parseInt(e.target.value) : null;
     salvarEstado();
