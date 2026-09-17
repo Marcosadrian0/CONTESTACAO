@@ -10,6 +10,7 @@ const { test, expect } = require('@playwright/test');
 const path = require('path');
 
 const PETICAO_TESTE = path.join(__dirname, 'fixtures', 'peticao-teste.txt');
+const PETICAO_SEM_TUTELA = path.join(__dirname, 'fixtures', 'peticao-sem-tutela.txt');
 
 async function stubarBibliotecas(page) {
   await page.addInitScript(() => {
@@ -376,6 +377,47 @@ test.describe('geração de contestação', () => {
     await expect(page.locator('#downloadDocBtn')).toBeVisible();
     await expect(page.locator('#geracaoBody')).toContainText('tempestiva');
     await expect(page.locator('#geracaoBody')).toContainText('01/09/2026');
+  });
+
+  test('variação "Completo" mostra a nota de ausência de preliminares quando não há tutela', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc.setFiles(PETICAO_SEM_TUTELA);
+    await page.click('.q-row[data-id]');
+    await expect(page.locator('#variacaoModeloSelect')).toHaveValue('completo');
+    await page.click('#genBtn');
+    await expect(page.locator('#downloadDocBtn')).toBeVisible();
+    await expect(page.locator('.page-preview')).toContainText('Preliminares processuais');
+    await expect(page.locator('.page-preview')).toContainText('Não foram identificadas questões processuais preliminares');
+  });
+
+  test('variação "Objetivo" omite a seção de preliminares quando não há tutela', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc.setFiles(PETICAO_SEM_TUTELA);
+    await page.click('.q-row[data-id]');
+    await page.selectOption('#variacaoModeloSelect', 'objetivo');
+    await page.click('#genBtn');
+    await expect(page.locator('#downloadDocBtn')).toBeVisible();
+    await expect(page.locator('.page-preview')).not.toContainText('Preliminares processuais');
+  });
+
+  test('reconvenção só entra como seção quando o operador escreve o texto', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc.setFiles(PETICAO_TESTE);
+    await page.click('.q-row[data-id]');
+    await page.fill('#reconvencaoInput', 'Pedido de reconvenção redigido pelo advogado responsável.');
+    await page.dispatchEvent('#reconvencaoInput', 'change');
+    await page.click('#genBtn');
+    await expect(page.locator('#downloadDocBtn')).toBeVisible();
+    await expect(page.locator('#geracaoBody')).toContainText('Reconvenção');
+    await expect(page.locator('#geracaoBody')).toContainText('Pedido de reconvenção redigido pelo advogado responsável.');
+  });
+
+  test('sem texto de reconvenção, a seção não aparece na minuta', async ({ page }) => {
+    await gerarContestacao(page);
+    await expect(page.locator('#geracaoBody')).not.toContainText('Reconvenção');
   });
 
   test('prazo processual calcula a data-limite e os dias úteis restantes', async ({ page }) => {

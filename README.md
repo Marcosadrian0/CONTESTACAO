@@ -395,9 +395,28 @@ sistema não impede mais o download de uma minuta não revisada.
       os outros 7 produtos do banco de 286 teses ainda não têm tema correspondente
       no sistema, então ficam só como referência de leitura). As teses próprias de
       cada empresa continuam casando por produto/pedido, sem mudança.
-   4. Adicionar o seletor de variação do modelo (completo/objetivo/bancário e
-      consumerista) e o módulo de reconvenção, condicionados a informação real do
-      caso, nunca inventados.
+   4. ✅ Adicionar o seletor de variação do modelo e o módulo de reconvenção
+      (concluído — ver detalhe abaixo).
+
+   **Detalhe do passo 4 (concluído):** seletor por caso "Completo" (padrão) ou
+   "Objetivo (Juizado Especial)", na tela de Geração. Afeta só a seção
+   "Preliminares processuais", único ponto onde as duas variações realmente
+   diferem hoje: no Completo, a seção sempre aparece — com a nota "Não foram
+   identificadas questões processuais preliminares capazes de impedir ou
+   modificar o exame do mérito" quando não há nenhuma (texto do próprio
+   modelo-base de referência do cliente, não inventado); no Objetivo, a seção é
+   omitida por completo quando vazia, para uma minuta mais enxuta (mesmo
+   comportamento que o sistema já tinha antes desta etapa). Nenhuma variação
+   remove uma preliminar real (ex.: tutela de urgência) quando ela existe. A
+   variação "Bancário e consumerista" do documento de referência não virou uma
+   terceira opção porque, neste domínio, ela já é o comportamento padrão
+   permanente da ferramenta (o módulo de regularidade de contratação e
+   cobranças sempre está no mérito, em qualquer variação) — expor um terceiro
+   botão idêntico ao "Completo" só confundiria o usuário.
+   Reconvenção: campo de texto livre opcional, por caso, na tela de Geração.
+   Nunca é gerado por IA ou heurística — é um pedido independente contra a
+   parte autora, então só entra na minuta exatamente como o próprio advogado
+   escrever; em branco, a seção não aparece.
 
    **Detalhe do passo 2 (concluído):** `montarSecoes()` agora segue a ordem e a
    nomenclatura das 15 seções do CPC (arts. 335 a 342) no que a ferramenta já
@@ -417,10 +436,10 @@ sistema não impede mais o download de uma minuta não revisada.
    documento gerado, não pela lista de seções — exigiriam vara, comarca, tipo de
    pessoa, CPF/CNPJ e endereço do réu, dados que a ferramenta não extrai hoje),
    Prejudiciais de mérito (prescrição/decadência, sem dado extraído para
-   sustentar), Fechamento e assinatura (nome do advogado, OAB e cidade não são
-   coletados) e Reconvenção (fora do escopo desta minuta de defesa). Nenhum desses
-   é fabricado — ficam para o advogado completar, como já acontecia antes desta
-   mudança.
+   sustentar) e Fechamento e assinatura (nome do advogado, OAB e cidade não são
+   coletados). Nenhum desses é fabricado — ficam para o advogado completar, como
+   já acontecia antes desta mudança. Reconvenção passou a ser coberta no passo 4
+   abaixo (campo de texto manual, nunca fabricado).
 2. Guardar de verdade os documentos de apoio anexados a um processo (hoje só ficam
    em memória da aba do navegador, ver "Limitação atual mais importante") — provavelmente
    um serviço de armazenamento de arquivos (ex.: Vercel Blob Storage), não o mesmo
