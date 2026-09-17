@@ -404,6 +404,24 @@ test.describe('geração de contestação', () => {
     await expect(page.locator('.page-preview')).toContainText('Tese cadastrada: pedido de teste automatizado');
   });
 
+  test('teses padrão do sistema: filtra por produto e "usar como base" pré-preenche o formulário', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.click('[data-view="teses"]');
+    await expect(page.locator('#tesesSistemaWrap')).toContainText('Escolha um produto ou uma causa raiz');
+
+    await page.selectOption('#tsFiltroProduto', 'Cartão Consignado');
+    await expect(page.locator('#tsFiltroCausa')).toBeVisible();
+    const primeiraCard = page.locator('#tesesSistemaWrap .client-card').first();
+    await expect(primeiraCard).toBeVisible();
+
+    await primeiraCard.locator('[data-usar]').click();
+    await expect(page.locator('#teseFormTitle')).toHaveText('Nova tese (a partir do padrão do sistema)');
+    await expect(page.locator('#teseProduto')).toHaveValue('__outro__');
+    await expect(page.locator('#teseProdutoOutro')).toHaveValue('Cartão Consignado');
+    const modelo = await page.locator('#teseModelo').inputValue();
+    expect(modelo.length).toBeGreaterThan(20);
+  });
+
   test('direcionador "acordo" oculta a geração de contestação e registra o encaminhamento', async ({ page }) => {
     await loginComoAdminPadrao(page);
     const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);

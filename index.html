@@ -15,17 +15,21 @@
   --serif:'Fraunces', serif;
   --sans:'Plus Jakarta Sans', sans-serif;
 }
+/* Paleta SBK IA — Brand Book 2026 (marca de produto). Verde Escuro #023631,
+   Ciano Escuro #075056, Off White #ECEFF3 são os tokens oficiais da marca;
+   --green/--amber/--red permanecem cores semânticas de status (sucesso/alerta/
+   erro), fora da paleta de marca, como em qualquer interface de sistema. */
 html[data-theme="light"]{
   --bg:#ECEFF3;
   --bg-raise:#FFFFFF;
   --bg-raise-2:#F4F6F8;
   --line:rgba(2,54,49,.10);
   --line-strong:rgba(2,54,49,.18);
-  --ink:#0C1F1B;
+  --ink:#023631;
   --ink-dim:#4A545E;
   --ink-faint:#8A93A0;
-  --cyan:#0E6E68;
-  --cyan-dim:rgba(14,110,104,.10);
+  --cyan:#075056;
+  --cyan-dim:rgba(7,80,86,.10);
   --green:#1E7A4C;
   --amber:#9C7222;
   --red:#A03C33;
@@ -34,15 +38,15 @@ html[data-theme="light"]{
   --shadow:0 1px 2px rgba(2,54,49,.05);
 }
 html[data-theme="dark"]{
-  --bg:#07120F;
-  --bg-raise:#0D1C18;
-  --bg-raise-2:#122720;
+  --bg:#012824;
+  --bg-raise:#023631;
+  --bg-raise-2:#0E4442;
   --line:rgba(236,239,243,.09);
   --line-strong:rgba(236,239,243,.16);
   --ink:#ECEFF3;
   --ink-dim:rgba(236,239,243,.56);
   --ink-faint:rgba(236,239,243,.32);
-  --cyan:#3FB8AE;
+  --cyan:#2A7C79;
   --cyan-dim:#0E4442;
   --green:#4FAE7C;
   --amber:#D9A441;
@@ -84,7 +88,7 @@ html[data-theme="light"] body{
 .brand-mark i{position:absolute; width:15px;height:15px; border-radius:4px;}
 .brand-mark i:nth-child(1){top:0;left:0; background:var(--ink);}
 .brand-mark i:nth-child(2){bottom:0;right:0; background:var(--cyan);}
-.brand-text{font-family:var(--serif); font-size:16px; font-weight:600; letter-spacing:.01em;}
+.brand-text{font-family:var(--sans); font-size:16px; font-weight:600; letter-spacing:.01em;}
 .brand-text span{color:var(--cyan); font-style:italic; font-weight:500;}
 
 .tabs{display:flex; gap:2px; background:var(--bg-raise); padding:4px; border-radius:11px; border:1px solid var(--line);}
@@ -126,7 +130,7 @@ main{max-width:1240px; margin:0 auto; padding:38px 34px 100px;}
   margin-bottom:10px; display:flex; align-items:center; gap:8px;
 }
 .kicker::before{content:''; width:16px; height:1px; background:var(--cyan);}
-.view-head h1{font-family:var(--serif); font-size:31px; font-weight:600; line-height:1.15; letter-spacing:-.01em;}
+.view-head h1{font-family:var(--sans); font-size:31px; font-weight:600; line-height:1.15; letter-spacing:-.01em;}
 .view-head p{color:var(--ink-dim); font-size:14px; margin-top:12px; line-height:1.65; max-width:600px;}
 
 /* ---------- dropzone ---------- */
@@ -377,7 +381,7 @@ html[data-theme="dark"] .auth-screen{
 .auth-card{width:100%; max-width:380px; background:var(--bg-raise); border:1px solid var(--line); border-radius:16px; padding:34px; box-shadow:var(--shadow);}
 .auth-brand{display:flex; align-items:center; gap:10px; margin-bottom:24px;}
 .auth-card .kicker{margin-bottom:8px;}
-.auth-card h1{font-family:var(--serif); font-size:22px; font-weight:600; margin-bottom:6px; letter-spacing:-.01em;}
+.auth-card h1{font-family:var(--sans); font-size:22px; font-weight:600; margin-bottom:6px; letter-spacing:-.01em;}
 .auth-sub{font-size:12.5px; color:var(--ink-dim); margin-bottom:22px; line-height:1.55;}
 .auth-error{font-size:12px; color:var(--red); margin:-6px 0 14px; min-height:14px;}
 .auth-hint{font-size:11px; color:var(--ink-faint); margin-top:16px; text-align:center; line-height:1.5;}
@@ -1002,6 +1006,24 @@ let clientes = [];
 let clienteSeq = 1;
 let teses = [];
 let teseSeq = 1;
+
+// Banco de teses padrão do sistema: 286 teses reais (matriz causa raiz x produto),
+// carregadas de um arquivo estático (data/teses-sistema.json), iguais para todas as
+// empresas — é conteúdo de referência jurídica, não dado de uma empresa específica.
+// Só leitura aqui; "usar como base" pré-preenche o formulário de tese própria da
+// empresa, que continua exigindo revisão e salvamento manual antes de valer.
+let tesesSistema = null;
+let tesesSistemaFiltro = { produto: '', causaRaiz: '' };
+async function carregarTesesSistema(){
+  if(tesesSistema !== null) return tesesSistema;
+  try{
+    const resp = await fetch('data/teses-sistema.json');
+    tesesSistema = resp.ok ? await resp.json() : [];
+  }catch(e){
+    tesesSistema = [];
+  }
+  return tesesSistema;
+}
 const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
 const FONTE_PADRAO = { familia:'Times New Roman', tamanho:12, espacamento:1.5 };
 const FONTES_DISPONIVEIS = ['Times New Roman', 'Arial', 'Calibri', 'Georgia'];
@@ -1320,7 +1342,15 @@ function renderTeses(){
       <button class="btn-generate" id="saveTeseBtn" style="width:100%; justify-content:center;">Salvar tese</button>
     </div>
     <div>${listaHtml}</div>
-  </div>`;
+  </div>
+  <div class="view-head" style="margin-top:40px;">
+    <div class="kicker">Referência jurídica, igual para todas as empresas</div>
+    <h1 style="font-size:20px">Teses padrão do sistema (286)</h1>
+    <p>Matriz causa raiz por produto, com tese defensiva, provas mínimas recomendadas e pedidos subsidiários. É só leitura: use "usar como base" para pré-preencher o formulário acima com uma tese própria, revise o texto e salve.</p>
+  </div>
+  <div id="tesesSistemaWrap"><div class="empty-state"><b>Carregando teses padrão…</b></div></div>`;
+
+  carregarTesesSistema().then(()=>renderTesesSistema());
 
   function alternarProdutoOutro(){
     const outro = document.getElementById('teseProduto').value === '__outro__';
@@ -1379,6 +1409,97 @@ function renderTeses(){
       renderTeses();
     });
   });
+}
+
+function renderTesesSistema(){
+  const wrap = document.getElementById('tesesSistemaWrap');
+  if(!wrap) return; // usuário já saiu da aba Banco de teses antes do fetch terminar
+  const todas = tesesSistema || [];
+  const produtos = [...new Set(todas.map(t=>t.produto))].sort();
+  const causas = [...new Set(todas.map(t=>t.causaRaiz))].sort();
+
+  const filtradas = todas.filter(t =>
+    (!tesesSistemaFiltro.produto || t.produto===tesesSistemaFiltro.produto) &&
+    (!tesesSistemaFiltro.causaRaiz || t.causaRaiz===tesesSistemaFiltro.causaRaiz)
+  );
+  const semFiltro = !tesesSistemaFiltro.produto && !tesesSistemaFiltro.causaRaiz;
+  const mostrar = semFiltro ? [] : filtradas.slice(0, 60);
+
+  const statusBadge = s => `<span class="client-badge ${s==='Classificação obrigatória' ? '' : 'off'}">${s}</span>`;
+
+  const listaHtml = semFiltro
+    ? `<div class="callout"><b>Escolha um produto ou uma causa raiz</b> para ver as teses (são 286, mostrar todas de uma vez ficaria difícil de navegar).</div>`
+    : mostrar.length === 0
+      ? `<div class="empty-state"><b>Nenhuma tese encontrada</b><span>Ajuste os filtros.</span></div>`
+      : `<div class="client-list">${mostrar.map(t=>`
+          <div class="client-card">
+            <div class="client-card-head">
+              <div>
+                <div class="client-name">${t.produto}</div>
+                <div class="client-badges">
+                  <span class="client-badge">${t.causaRaiz}</span>
+                  ${statusBadge(t.statusUso)}
+                </div>
+              </div>
+            </div>
+            <div style="font-size:12.5px; color:var(--ink-dim); margin:8px 0; max-height:110px; overflow:hidden;">${t.teseDefensiva}</div>
+            ${t.provasMinimas ? `<div style="font-size:11.5px; color:var(--ink-faint); margin-bottom:4px;"><b>Provas mínimas:</b> ${t.provasMinimas}</div>` : ''}
+            ${t.pedidosSubsidiarios ? `<div style="font-size:11.5px; color:var(--ink-faint);"><b>Pedidos subsidiários:</b> ${t.pedidosSubsidiarios}</div>` : ''}
+            <div class="client-actions">
+              <button class="mini-btn" data-usar="${t.id}">Usar como base</button>
+            </div>
+          </div>`).join('')}</div>
+        ${filtradas.length > mostrar.length ? `<div class="ev-body" style="margin-top:10px;">Mostrando ${mostrar.length} de ${filtradas.length}. Refine o filtro para ver as demais.</div>` : ''}`;
+
+  wrap.innerHTML = `
+    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+      <select class="f-input" id="tsFiltroProduto" style="margin-bottom:0; width:auto;">
+        <option value="">Todos os produtos (${produtos.length})</option>
+        ${produtos.map(p=>`<option value="${p}" ${tesesSistemaFiltro.produto===p?'selected':''}>${p}</option>`).join('')}
+      </select>
+      <select class="f-input" id="tsFiltroCausa" style="margin-bottom:0; width:auto;">
+        <option value="">Todas as causas raiz (${causas.length})</option>
+        ${causas.map(c=>`<option value="${c}" ${tesesSistemaFiltro.causaRaiz===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+    ${listaHtml}`;
+
+  document.getElementById('tsFiltroProduto').addEventListener('change', e=>{
+    tesesSistemaFiltro.produto = e.target.value;
+    renderTesesSistema();
+  });
+  document.getElementById('tsFiltroCausa').addEventListener('change', e=>{
+    tesesSistemaFiltro.causaRaiz = e.target.value;
+    renderTesesSistema();
+  });
+  wrap.querySelectorAll('[data-usar]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const t = todas.find(x=>x.id===parseInt(btn.dataset.usar));
+      if(t) usarTeseSistemaComoBase(t);
+    });
+  });
+}
+
+// Pré-preenche o formulário de tese própria com uma tese padrão do sistema, para o
+// usuário revisar e salvar — nunca salva sozinho, porque "Pedido" (categoria usada
+// para casar com os pedidos da petição) não existe do mesmo jeito na planilha de
+// origem (lá a unidade é causa raiz, aqui é pedido); a pessoa precisa decidir esse
+// campo antes de salvar.
+function usarTeseSistemaComoBase(t){
+  document.getElementById('teseFormTitle').textContent = 'Nova tese (a partir do padrão do sistema)';
+  document.getElementById('teseEditId').value = '';
+  const temaConhecido = Object.keys(TEMA_PRODUTOS).includes(t.produto);
+  document.getElementById('teseProduto').value = temaConhecido ? t.produto : '__outro__';
+  document.getElementById('teseProdutoOutro').value = temaConhecido ? '' : t.produto;
+  document.getElementById('teseProdutoOutro').style.display = temaConhecido ? 'none' : 'block';
+  document.getElementById('teseCausaRaiz').value = t.causaRaiz;
+  document.getElementById('tesePedido').value = '';
+  const partes = [t.teseDefensiva];
+  if(t.provasMinimas) partes.push(`Provas mínimas recomendadas: ${t.provasMinimas}`);
+  if(t.pedidosSubsidiarios) partes.push(`Pedidos subsidiários: ${t.pedidosSubsidiarios}`);
+  document.getElementById('teseModelo').value = partes.join('\n\n');
+  window.scrollTo({top:0, behavior:'smooth'});
+  document.getElementById('tesePedido').focus();
 }
 
 /* ---------------- padrões por cliente ---------------- */
