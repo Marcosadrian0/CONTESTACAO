@@ -350,6 +350,34 @@ test.describe('geração de contestação', () => {
     await expect(page.locator('#printDocBtn')).toBeEnabled();
   });
 
+  test('minuta segue a estrutura das 15 seções do CPC (as que a ferramenta já cobre)', async ({ page }) => {
+    await gerarContestacao(page);
+    const corpo = page.locator('#geracaoBody');
+    await expect(corpo).toContainText('Apresentação e tempestividade');
+    await expect(corpo).toContainText('ainda não informada nesta ferramenta');
+    await expect(corpo).toContainText('Síntese da demanda');
+    await expect(corpo).toContainText('Realidade dos fatos');
+    await expect(corpo).toContainText('Preliminares processuais');
+    await expect(corpo).toContainText('Mérito: enquadramento da controvérsia');
+    await expect(corpo).toContainText('Impugnação específica dos pedidos: repetição dos descontos');
+    await expect(corpo).toContainText('Jurisprudência aplicável');
+    await expect(corpo).toContainText('Provas');
+    await expect(corpo).toContainText('Pedidos e conclusão da defesa');
+  });
+
+  test('data de citação informada antes da geração aparece na tempestividade da minuta', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc.setFiles(PETICAO_TESTE);
+    await page.click('.q-row[data-id]');
+    await page.fill('#dataCitacaoInput', '2026-09-01');
+    await page.dispatchEvent('#dataCitacaoInput', 'change');
+    await page.click('#genBtn');
+    await expect(page.locator('#downloadDocBtn')).toBeVisible();
+    await expect(page.locator('#geracaoBody')).toContainText('tempestiva');
+    await expect(page.locator('#geracaoBody')).toContainText('01/09/2026');
+  });
+
   test('prazo processual calcula a data-limite e os dias úteis restantes', async ({ page }) => {
     await gerarContestacao(page);
     await page.fill('#dataCitacaoInput', '2026-09-01');

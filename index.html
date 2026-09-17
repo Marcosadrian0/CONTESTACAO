@@ -1183,7 +1183,40 @@ const BLOCOS_FIXOS = {
 };
 
 function textoTutela(){
-  return 'Quanto ao pedido de tutela de urgência, ausentes os requisitos legais: a probabilidade do direito é afastada pela prova documental da contratação apresentada nesta defesa (ver seção Prova da contratação), e inexiste perigo de dano apto a justificar a medida.';
+  return 'Quanto ao pedido de tutela de urgência, ausentes os requisitos legais: a probabilidade do direito é afastada pela prova documental da contratação apresentada nesta defesa (ver seção Provas), e inexiste perigo de dano apto a justificar a medida.';
+}
+
+// Seção "Apresentação e tempestividade" (CPC, art. 335): só afirma uma data de vencimento
+// de prazo quando o operador já informou a data de citação/intimação na tela de Geração
+// (c.dataCitacao/c.dataLimite, mesmo cálculo do indicador de prazo already exibido ali).
+// Sem essa data, o texto avisa que a tempestividade ainda precisa ser conferida, em vez de
+// presumir ou inventar uma data.
+function textoTempestividade(c){
+  if(c.dataCitacao && c.dataLimite){
+    const citacao = new Date(c.dataCitacao + 'T00:00:00').toLocaleDateString('pt-BR');
+    const limite = new Date(c.dataLimite).toLocaleDateString('pt-BR');
+    return `A presente contestação é tempestiva: a citação/intimação da instituição ré ocorreu em ${citacao}, com termo final do prazo de ${c.prazoDias || 15} dias (contados em dias úteis) em ${limite}, dentro do qual esta peça é apresentada. Prazo estimado sem calendário de feriados forenses — conferir a data exata no processo oficial antes do protocolo.`;
+  }
+  return 'A tempestividade desta contestação deve ser conferida a partir da data de citação/intimação do processo, ainda não informada nesta ferramenta (campo "Data da citação/intimação" na tela de Geração) — confirme o prazo antes do protocolo.';
+}
+
+// Seção "Realidade dos fatos" (CPC, art. 336, recomendada): parágrafo-ponte entre a síntese
+// da demanda e o mérito, sem inventar fatos que não constem da petição — só menciona a causa
+// raiz quando ela foi de fato identificada (pela IA ou informada manualmente).
+function textoRealidadeDosFatos(f){
+  const causaRaizValida = f.causaRaiz && !/não localizado/i.test(f.causaRaiz) ? f.causaRaiz : null;
+  const alegacao = causaRaizValida
+    ? `de que houve, quanto a "${causaRaizValida}", irregularidade na contratação ou na cobrança do produto identificado como "${f.tema}"`
+    : `de irregularidade na contratação ou na cobrança do produto identificado como "${f.tema}"`;
+  return `Embora a parte autora sustente a alegação ${alegacao}, os documentos e registros juntados a esta defesa demonstram realidade distinta, detalhada nas seções seguintes desta contestação.`;
+}
+
+// Seção "Jurisprudência aplicável" (CPC, art. 342, condicional — aqui sempre incluída porque
+// os precedentes abaixo já aparecem, hoje, em todo caso gerado, embutidos nos blocos fixos de
+// mérito). Consolida, em quadro-síntese, só os precedentes já citados e verificados nesta
+// sessão (ver nota de verificação em BLOCOS_FIXOS acima) — não introduz nenhuma citação nova.
+function textoJurisprudenciaAplicavel(){
+  return 'Em reforço aos fundamentos já expostos nesta defesa, colaciona-se quadro-síntese dos precedentes citados: (i) validade da assinatura eletrônica avançada por biometria facial — REsp 2.159.442/PR (STJ, 3ª Turma, Rel. Min. Nancy Andrighi, julgado em 29/11/2024); (ii) ausência de dano moral in re ipsa pelo mero desconto questionado, sem prova de repercussão concreta — AgInt no AREsp 2.157.547/SC (STJ, 4ª Turma, Rel. Min. Raul Araújo, julgado em 12/12/2022) e AgInt nos EDcl no AREsp 1.669.683/SP (STJ, 3ª Turma, Rel. Min. Marco Aurélio Bellizze, julgado em 23/11/2020); (iii) modulação temporal e regra de cálculo da eventual devolução em dobro — EAREsp 600.663/RS e Súmula 43 do STJ. Alerta-se que o Tema Repetitivo 1.435/STJ (2ª Seção, Rel. Min. Isabel Gallotti), sobre a caracterização, ou não, de dano moral presumido em descontos indevidos em benefício previdenciário, está pendente de julgamento, com determinação de suspensão nacional dos processos correlatos — recomenda-se conferir o andamento no site do STJ antes do protocolo desta peça.';
 }
 
 // Ponte entre os 6 temas (produto financeiro) do sistema e os 13 produtos do banco de
@@ -1213,45 +1246,62 @@ function tesesSistemaDoMerito(tema, causaRaiz){
   return tesesSistema.filter(t => t.produto === produtoSistema && t.causaRaiz === causaRaiz);
 }
 
-// Monta a lista de seções da minuta em ordem fixa, pulando as que não se aplicam.
+// Monta a lista de seções da minuta seguindo, no que já é coberto por esta ferramenta, a
+// estrutura modular de 15 seções do CPC (arts. 335 a 342): 1-4 (endereçamento, identificação
+// do processo e qualificação do réu) ficam no preâmbulo fixo do próprio documento (ver
+// buildWordHtml), não como "seção" desta lista, porque exigem dados que a ferramenta não
+// extrai hoje (vara, comarca, tipo de pessoa, CPF/CNPJ e endereço do réu) — inventar esses
+// campos seria pior do que deixá-los para o advogado completar no cabeçalho, como já acontece.
+// Pelo mesmo motivo, ficam de fora "Prejudiciais de mérito" (prescrição/decadência, sem dado
+// extraído), "Fechamento e assinatura" (nome do advogado/OAB/cidade não são coletados) e
+// "Reconvenção" (pedido independente, fora do escopo desta minuta de defesa).
 // A numeração sequencial e a ausência de título repetido são garantidas pela própria função, não por checagem manual.
 function montarSecoes(c){
   const f = c.fields;
   const lib = TEMA_PRODUTOS[f.tema] || TEMA_PRODUTOS.default;
   const secoes = [];
+  const tesesSistemaAplicaveis = tesesSistemaDoMerito(f.tema, f.causaRaiz);
 
-  secoes.push({ t: 'Breve resumo da inicial', b: f.resumo });
+  secoes.push({ t: 'Apresentação e tempestividade', b: textoTempestividade(c) });
+  secoes.push({ t: 'Síntese da demanda', b: f.resumo });
+  secoes.push({ t: 'Realidade dos fatos', b: textoRealidadeDosFatos(f) });
 
   const itensPreliminar = [];
   if(f.pedeTutela) itensPreliminar.push(textoTutela());
   if(itensPreliminar.length){
-    secoes.push({ t: 'Preliminares', b: itensPreliminar.join('\n\n') });
+    secoes.push({ t: 'Preliminares processuais', b: itensPreliminar.join('\n\n') });
   }
 
-  secoes.push({ t: 'Enquadramento da controvérsia', b:
+  secoes.push({ t: 'Mérito: enquadramento da controvérsia', b:
     `O desfecho desta lide está atrelado à resposta dada à seguinte questão: há, ou não, contratação regular do produto identificado como "${f.tema}" pela parte autora junto à instituição ré.` });
-  secoes.push({ t: 'Prova da contratação', b: BLOCOS_FIXOS.provaContratacao });
-  secoes.push({ t: 'Regularidade dos descontos impugnados', b: f.regularidadeTexto || lib.regularidade });
-  secoes.push({ t: 'Validade técnico-jurídica da autenticação por biometria facial', b: BLOCOS_FIXOS.biometria });
-  secoes.push({ t: 'Presunção de autenticidade da assinatura eletrônica não impugnada', b: BLOCOS_FIXOS.presuncaoAssinatura });
-  secoes.push({ t: 'Impossibilidade de inversão do ônus da prova', b: BLOCOS_FIXOS.onusProva });
-  secoes.push({ t: 'Mérito: impugnação específica ao pedido de repetição dos descontos', b: BLOCOS_FIXOS.meritoRepeticao });
-  secoes.push({ t: 'Mérito: impugnação específica ao pedido de danos morais', b: BLOCOS_FIXOS.meritoDanosMorais });
-  secoes.push({ t: 'Necessidade de compensação de valores', b: BLOCOS_FIXOS.compensacao });
-  secoes.push({ t: 'Apuração do valor do indébito', b: BLOCOS_FIXOS.apuracaoIndebito });
+  secoes.push({ t: 'Mérito: regularidade dos descontos impugnados', b: f.regularidadeTexto || lib.regularidade });
+  secoes.push({ t: 'Mérito: validade técnico-jurídica da autenticação por biometria facial', b: BLOCOS_FIXOS.biometria });
+  secoes.push({ t: 'Mérito: presunção de autenticidade da assinatura eletrônica não impugnada', b: BLOCOS_FIXOS.presuncaoAssinatura });
+  secoes.push({ t: 'Mérito: impossibilidade de inversão do ônus da prova', b: BLOCOS_FIXOS.onusProva });
 
   tesesDoTema(f.tema).forEach(t=>{
-    secoes.push({ t: `Tese cadastrada: ${t.pedido}`, b: t.modeloTese });
+    secoes.push({ t: `Mérito: Tese cadastrada: ${t.pedido}`, b: t.modeloTese });
+  });
+  tesesSistemaAplicaveis.forEach(t=>{
+    secoes.push({ t: `Mérito: Tese padrão do sistema: ${t.causaRaiz}`, b: t.teseDefensiva });
   });
 
-  tesesSistemaDoMerito(f.tema, f.causaRaiz).forEach(t=>{
-    let corpo = t.teseDefensiva;
-    if(t.provasMinimas) corpo += '\n\nProvas mínimas recomendadas: ' + t.provasMinimas;
-    if(t.pedidosSubsidiarios) corpo += '\n\nPedidos subsidiários recomendados: ' + t.pedidosSubsidiarios;
-    secoes.push({ t: `Tese padrão do sistema: ${t.causaRaiz}`, b: corpo });
-  });
+  secoes.push({ t: 'Impugnação específica dos pedidos: repetição dos descontos', b: BLOCOS_FIXOS.meritoRepeticao });
+  secoes.push({ t: 'Impugnação específica dos pedidos: danos morais', b: BLOCOS_FIXOS.meritoDanosMorais });
+  secoes.push({ t: 'Impugnação específica dos pedidos: compensação de valores', b: BLOCOS_FIXOS.compensacao });
+  secoes.push({ t: 'Impugnação específica dos pedidos: apuração do indébito', b: BLOCOS_FIXOS.apuracaoIndebito });
 
-  secoes.push({ t: 'Considerações finais', b: BLOCOS_FIXOS.consideracoesFinais });
+  secoes.push({ t: 'Jurisprudência aplicável', b: textoJurisprudenciaAplicavel() });
+
+  const provasMinimasExtras = tesesSistemaAplicaveis.map(t=>t.provasMinimas).filter(Boolean);
+  let provasBody = BLOCOS_FIXOS.provaContratacao;
+  if(provasMinimasExtras.length) provasBody += '\n\nProvas mínimas recomendadas para esta causa: ' + provasMinimasExtras.join('; ') + '.';
+  secoes.push({ t: 'Provas', b: provasBody });
+
+  const pedidosSubsidiariosExtras = tesesSistemaAplicaveis.map(t=>t.pedidosSubsidiarios).filter(Boolean);
+  let pedidosBody = BLOCOS_FIXOS.consideracoesFinais;
+  if(pedidosSubsidiariosExtras.length) pedidosBody += '\n\nPedidos subsidiários recomendados para esta causa: ' + pedidosSubsidiariosExtras.join('; ') + '.';
+  secoes.push({ t: 'Pedidos e conclusão da defesa', b: pedidosBody });
 
   return secoes;
 }
@@ -1281,10 +1331,10 @@ function checkQuality(f, secoes){
   const notLocated = v => !v || /não localizado/i.test(v);
   const titulos = secoes.map(s => s.t.trim().toLowerCase());
   const semTituloRepetido = new Set(titulos).size === titulos.length;
-  const preliminaresIdx = secoes.findIndex(s => s.t === 'Preliminares');
+  const preliminaresIdx = secoes.findIndex(s => s.t === 'Preliminares processuais');
   const meritoIdx = secoes.findIndex(s => /^mérito/i.test(s.t));
   const preliminaresAntesDoMerito = preliminaresIdx === -1 || meritoIdx === -1 || preliminaresIdx < meritoIdx;
-  const tutelaTratada = !f.pedeTutela || secoes.some(s => s.t === 'Preliminares' && /tutela de urg/i.test(s.b));
+  const tutelaTratada = !f.pedeTutela || secoes.some(s => s.t === 'Preliminares processuais' && /tutela de urg/i.test(s.b));
 
   const checks = [
     {label:'Número CNJ identificado', pass: !notLocated(f.numeroCNJ)},
