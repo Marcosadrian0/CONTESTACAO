@@ -13,6 +13,7 @@ api/anthropic.js    função serverless da Vercel, chama a API da Anthropic com 
 api/users.js        função serverless da Vercel, login e administração de usuários/empresas (banco Postgres/Neon)
 api/dados.js        função serverless da Vercel, fila/análises/teses/padrões, segregados por empresa (mesmo banco)
 api/package.json    marca a pasta api/ como módulos ES (api/users.js e api/dados.js usam import/export)
+data/teses-sistema.json  286 teses padrão (matriz causa raiz x produto), arquivo estático, igual para todas as empresas
 middleware.js       middleware de borda da Vercel, restringe o acesso a IPs autorizados
 tests/              suíte de regressão (Playwright Test), ver seção "Testes automatizados"
 playwright.config.js configuração da suíte de testes
@@ -207,6 +208,19 @@ reais durante o desenvolvimento (troca de usuário deixando dado da sessão ante
 na tela, e um estouro de layout em telas estreitas causado por um item de grid sem
 `min-width:0`) que passariam despercebidos numa checagem manual rápida.
 
+## Identidade visual
+
+A interface usa a marca **SBK IA** (Brand Book 2026, variação de produto digital):
+fundo Off White `#ECEFF3`, tinta `#023631` (Verde Escuro), destaque `#075056`
+(Ciano Escuro) no tema claro e `#2A7C79` (Ciano) no tema escuro, tipografia Plus
+Jakarta Sans (Seminegrito nos títulos, Leve no corpo de texto). A prévia da minuta
+gerada (`.page-preview`/`.doc-frame`) continua com fonte serifada de propósito:
+ela simula um documento que vai a protocolo em juízo, não um material da SBK, e
+segue a convenção tipográfica de peça jurídica, não a identidade de marca da
+ferramenta que a gera — a mesma distinção vale para o `.doc` exportado, cuja fonte
+padrão (Times New Roman, configurável por cliente em Padrões por cliente) segue
+convenção de documento jurídico, não a marca.
+
 ## Estado atual (o que já funciona)
 
 - Upload de petição inicial em PDF, DOCX ou TXT, com leitura de texto real via
@@ -228,6 +242,22 @@ na tela, e um estouro de layout em telas estreitas causado por um item de grid s
 - Aba "Banco de teses": cadastro de teses por produto (tema), causa raiz, pedido
   e modelo de texto; toda tese cadastrada para o produto de um processo entra
   automaticamente como seção extra na minuta gerada para aquele produto.
+- Dentro da mesma aba, "Teses padrão do sistema": 286 teses reais (matriz causa
+  raiz x produto, `data/teses-sistema.json`), iguais para todas as empresas,
+  filtráveis por produto e causa raiz. É só leitura — o botão "usar como base"
+  pré-preenche o formulário de tese própria da empresa para revisão e salvamento
+  manual, porque a unidade de organização da planilha de origem (causa raiz) não
+  é a mesma do campo "Pedido" usado hoje para casar automaticamente com os pedidos
+  da petição (ver "Próximos passos" sobre a migração para as 15 seções do CPC).
+  As citações de jurisprudência já embutidas no texto dessas 286 teses (Súmula 479,
+  Tema 1061, EAREsp 676.608, Súmula 385, Súmulas 382 e 530, REsp 1.061.530, todas
+  do STJ) foram verificadas em fontes independentes em 17/09/2026: todas existem e
+  a tese bate com a descrição, com uma ressalva — o REsp 1.061.530/RS tem como
+  núcleo juros remuneratórios/mora/comissão de permanência, não capitalização de
+  juros; para citar capitalização especificamente, o precedente mais preciso é o
+  REsp 973.827/RS. A Súmula 385 também tem uma mitigação conhecida: não afasta o
+  dano moral quando as demais inscrições preexistentes também são indevidas/
+  discutidas judicialmente. Reconferir sempre antes de um protocolo real.
 - Painel "Defesa aplicada por pedido" na minuta gerada: para cada pedido
   identificado na petição (via IA), mostra se uma tese do Banco de teses foi
   aplicada ou se seguiu o modelo padrão do tema.
@@ -347,14 +377,33 @@ sistema não impede mais o download de uma minuta não revisada.
 
 ## Próximos passos sugeridos
 
-1. Guardar de verdade os documentos de apoio anexados a um processo (hoje só ficam
+1. **Migrar a estrutura da minuta para as 15 seções do CPC** (arts. 335 a 342),
+   com seções condicionais, três variações de modelo (completo, objetivo para
+   Juizado Especial, bancário e consumerista) e o módulo de reconvenção — conforme
+   o documento de referência recebido do cliente (`documento-completo-motor-
+   contestacoesv5.docx`). É uma mudança grande na função `montarSecoes()` e no
+   checklist de qualidade, por isso a proposta é em etapas, não de uma vez:
+   1. Adicionar campo de causa raiz na extração por IA (hoje só extrai
+      número/autor/réu/valor/tema/resumo/pedidos) — pré-requisito para o passo 3.
+   2. Reescrever `montarSecoes()` para as 15 seções, mantendo o texto atual de
+      `BLOCOS_FIXOS` realocado nas seções correspondentes (mérito, impugnação,
+      provas), sem quebrar os testes existentes.
+   3. Ligar as "teses padrão do sistema" (`data/teses-sistema.json`) e as teses
+      próprias de cada empresa à seção de mérito por causa raiz, substituindo o
+      casamento atual por produto/pedido.
+   4. Adicionar o seletor de variação do modelo (completo/objetivo/bancário e
+      consumerista) e o módulo de reconvenção, condicionados a informação real do
+      caso, nunca inventados.
+   Enquanto isso não acontece, o Banco de teses padrão do sistema fica disponível
+   só como referência de leitura (ver "Teses padrão do sistema" acima).
+2. Guardar de verdade os documentos de apoio anexados a um processo (hoje só ficam
    em memória da aba do navegador, ver "Limitação atual mais importante") — provavelmente
    um serviço de armazenamento de arquivos (ex.: Vercel Blob Storage), não o mesmo
    JSONB usado para o restante do estado.
    Um papel intermediário de "admin da própria empresa" (hoje só o admin master
    cadastra usuários/empresas) também fica para uma próxima rodada, se granularidade
    de administração por empresa vier a ser necessária.
-2. Ampliar a biblioteca de teses (`TEMA_PRODUTOS` em `index.html`) à medida que
+3. Ampliar a biblioteca de teses (`TEMA_PRODUTOS` em `index.html`) à medida que
    mais contestações reais forem validadas, seguindo o mesmo processo usado para
    os seis temas atuais: ler peças reais, extrair o padrão comum, e só então
    generalizar. Não dá para simplesmente inventar tese nova sem validar contra
@@ -363,16 +412,18 @@ sistema não impede mais o download de uma minuta não revisada.
    revisional de juros/taxa abusiva" é um tipo de caso bem diferente dos seis
    temas atuais (todos sobre desconto indevido em consignado), com jurisprudência
    própria (REsp 1.036.818, REsp 1.061.530/RS, REsp 271.214, REsp 971.853, Súmula
-   530/STJ) — precisaria virar um tema novo, não ser misturado nos existentes.
-3. Gerar o arquivo final como `.docx` nativo (biblioteca de geração no navegador
+   530/STJ) — precisaria virar um tema novo, não ser misturado nos existentes. As
+   286 teses padrão do sistema (ver acima) já cobrem 13 produtos e 43 causas raiz
+   diferentes, incluindo "Revisão de Juros", e podem alimentar essa ampliação.
+4. Gerar o arquivo final como `.docx` nativo (biblioteca de geração no navegador
    ou no backend) em vez do truque de HTML compatível com Word usado hoje.
-4. Calendário de feriados forenses por comarca/tribunal para o cálculo de prazo
+5. Calendário de feriados forenses por comarca/tribunal para o cálculo de prazo
    ficar mais próximo do prazo real (hoje só desconta sábado e domingo).
-5. Log de auditoria persistente (hoje o histórico de quem gerou/confirmou cada
+6. Log de auditoria persistente (hoje o histórico de quem gerou/confirmou cada
    minuta vive só em memória, como o restante do estado da sessão).
-6. Revisão de conformidade LGPD formal com o time jurídico/DPO (hoje só existe um
+7. Revisão de conformidade LGPD formal com o time jurídico/DPO (hoje só existe um
    aviso operacional na interface, ver seção "Privacidade e dados enviados à IA").
-7. Segundo projeto Vercel dedicado a homologação, isolado do de produção (hoje só
+8. Segundo projeto Vercel dedicado a homologação, isolado do de produção (hoje só
    existe a recomendação de uso das Preview Deployments da própria Vercel, ver
    seção "Ambiente de homologação separado de produção").
 8. Rodar a suíte de testes automaticamente a cada push (CI, ex.: GitHub Actions),
