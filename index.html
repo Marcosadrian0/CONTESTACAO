@@ -165,33 +165,46 @@ main{max-width:1240px; margin:0 auto; padding:38px 34px 100px;}
 .empty-state span{font-size:12.5px;}
 
 /* ---------- fila dinâmica ---------- */
-.queue-table{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--bg-raise); box-shadow:var(--shadow);}
-.q-row{
-  display:grid; grid-template-columns:1.4fr 140px 150px 100px 40px;
-  align-items:center; gap:14px; padding:16px 20px;
-  border-bottom:1px solid var(--line); cursor:pointer; transition:background .12s;
-}
-.q-row:last-child{border-bottom:none;}
+/* .q-row fica na <tr> só para manter o mesmo seletor usado pelos testes e pelo clique de
+   abrir o processo — display:table-row é o padrão do navegador para <tr>, não precisa
+   ser declarado aqui (declarar display:grid aqui, como na versão anterior baseada em
+   <div>, tira a linha do fluxo da tabela e quebra o alinhamento das colunas). */
+.q-row{cursor:pointer; transition:background .12s;}
 .q-row:hover{background:var(--bg-raise-2);}
-.q-row.head{
-  font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em;
-  color:var(--ink-faint); cursor:default;
-}
-.q-row.head:hover{background:transparent;}
-.qc-tema{font-size:13.5px; font-weight:500;}
-.qc-tema .sub{display:block; font-size:11px; color:var(--ink-faint); font-weight:300; margin-top:2px; font-family:var(--mono);}
-.qc-conf{font-family:var(--mono); font-size:12.5px;}
-.conf-bar{width:64px; height:4px; border-radius:3px; background:var(--line); margin-top:5px; overflow:hidden;}
-.conf-fill{height:100%; border-radius:3px;}
 .route-pill{
   font-family:var(--mono); font-size:10px; letter-spacing:.02em; padding:5px 10px; border-radius:20px;
   display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
 }
-.route-pill.ai{background:rgba(14,110,104,.12); color:var(--cyan);}
-.route-pill.local{background:rgba(217,164,65,.14); color:var(--amber);}
 .route-pill i{width:5px;height:5px;border-radius:50%; background:currentColor;}
-.qc-status{font-size:12px; color:var(--ink-dim);}
-.qc-arrow{color:var(--ink-faint); font-size:15px;}
+
+/* ---------- cartões e tabelas (layout de referência) ---------- */
+.card{background:var(--bg-raise); border:1px solid var(--line); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); margin-bottom:16px;}
+.section-title{font-family:var(--sans); font-size:15px; font-weight:600; letter-spacing:-.01em;}
+.count-badge{
+  display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 7px;
+  border-radius:11px; background:var(--cyan-dim); color:var(--cyan); font-family:var(--mono); font-size:11.5px; font-weight:600;
+}
+.row{display:flex; gap:10px; align-items:center;}
+.row.between{justify-content:space-between;}
+.table-wrap{overflow-x:auto;}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{
+  text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em; font-weight:600;
+  color:var(--ink-faint); padding:9px 12px; border-bottom:1px solid var(--line); white-space:nowrap;
+}
+td{padding:12px; border-bottom:1px solid var(--line); vertical-align:middle;}
+tbody tr{transition:background .12s ease;}
+tbody tr:hover{background:var(--bg-raise-2);}
+tr:last-child td{border-bottom:none;}
+.pill{
+  display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:4px 10px;
+  border-radius:20px; white-space:nowrap; letter-spacing:.01em;
+}
+.pill::before{content:''; width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0;}
+.pill.ok{background:rgba(30,122,76,.12); color:var(--green);}
+.pill.warn{background:rgba(156,114,34,.12); color:var(--amber);}
+.pill.risk{background:rgba(160,60,51,.12); color:var(--red);}
+.pill.info{background:var(--bg-raise-2); color:var(--ink-dim);}
 
 /* ---------- geração / evidência ---------- */
 .gen-shell{display:grid; grid-template-columns:1fr 360px; gap:18px; align-items:start;}
@@ -283,7 +296,8 @@ main{max-width:1240px; margin:0 auto; padding:38px 34px 100px;}
   background:transparent; color:var(--ink-dim); cursor:pointer;
 }
 .mini-btn:hover{color:var(--ink); border-color:var(--ink-faint);}
-.mini-btn.danger:hover{color:var(--red); border-color:var(--red);}
+.mini-btn.danger{color:var(--red); border-color:rgba(160,60,51,.35); display:inline-flex; align-items:center; justify-content:center;}
+.mini-btn.danger:hover{background:rgba(160,60,51,.1); border-color:var(--red);}
 
 .spin{width:14px; height:14px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--cyan); animation:spin .7s linear infinite; display:inline-block;}
 @keyframes spin{to{transform:rotate(360deg);}}
@@ -366,7 +380,6 @@ footer{max-width:1240px; margin:60px auto 0; padding:24px 34px; border-top:1px s
 @media(max-width:980px){
   main{padding:28px 18px;}
   .gen-shell, .qa-shell, .learn-grid, .client-shell, .admin-shell{grid-template-columns:1fr;}
-  .q-row{grid-template-columns:1fr; gap:6px;}
   .case-row, .user-row{grid-template-columns:1fr; gap:6px;}
   .dropzone{flex-direction:column; text-align:center;}
   .client-form{position:static;}
@@ -494,7 +507,7 @@ html[data-theme="dark"] .auth-screen{
   </div>
   <div class="nav-group-label">Operação</div>
   <div class="tabs" id="tabs">
-    <div class="tab active" data-view="fila">Fila</div>
+    <div class="tab active" data-view="fila">Ingestão / Fila</div>
     <div class="tab" data-view="geracao">Geração</div>
     <div class="tab" data-view="teses">Banco de teses</div>
     <div class="tab" data-view="analises">Análises</div>
@@ -532,18 +545,21 @@ html[data-theme="dark"] .auth-screen{
       <p>A fila está zerada. Envie o PDF, o DOCX ou o texto de uma petição real para ver a extração automática de dados, o resumo e o tema sugerido. O sistema tenta extrair com IA e usa leitura local por padrão de texto como reserva.</p>
     </div>
 
-    <div class="dropzone" id="dropzone">
-      <div class="dropzone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
-      <div class="dropzone-text">
-        <b>Anexar petição inicial</b>
-        <span>Arraste um arquivo aqui ou clique para escolher. Aceita PDF, DOCX e TXT.</span>
+    <div class="card">
+      <div class="section-title" style="margin-bottom:14px;">Nova ingestão</div>
+      <div class="dropzone" id="dropzone" style="margin-bottom:0;">
+        <div class="dropzone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
+        <div class="dropzone-text">
+          <b>Anexar petição inicial</b>
+          <span>Arraste um arquivo aqui ou clique para escolher. Aceita PDF, DOCX e TXT.</span>
+        </div>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
       </div>
-      <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
     </div>
 
-    <div class="callout" style="margin-bottom:22px;"><b>Sobre os dados enviados.</b> A leitura do arquivo acontece no navegador. Para a extração automática e a adaptação de texto por IA, trechos do conteúdo da petição são enviados à API da Anthropic (processados, não armazenados por ela para treinamento, segundo a política de uso da API). Evite anexar documento com dado sensível além do necessário para a defesa, e trate esta ferramenta como um ambiente de teste até a revisão de conformidade (LGPD) ser concluída.</div>
-
     <div id="filaBody"></div>
+
+    <div class="callout"><b>Sobre os dados enviados.</b> A leitura do arquivo acontece no navegador. Para a extração automática e a adaptação de texto por IA, trechos do conteúdo da petição são enviados à API da Anthropic (processados, não armazenados por ela para treinamento, segundo a política de uso da API). Evite anexar documento com dado sensível além do necessário para a defesa, e trate esta ferramenta como um ambiente de teste até a revisão de conformidade (LGPD) ser concluída.</div>
   </section>
 
   <!-- ============ GERAÇÃO ============ -->
@@ -2478,39 +2494,52 @@ function renderFila(){
       <button class="mini-btn" id="filtroMeus" style="${filaFiltro==='meus' ? 'color:var(--cyan); border-color:var(--cyan);' : ''}">Só os meus (${cases.filter(c=>currentUser && c.criadoPor===currentUser.usuario).length})</button>
     </div>` : '';
 
-  if(visiveis.length===0){
-    body.innerHTML = filtroHtml + `<div class="empty-state">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6M9 16h6M9 8h6"/><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/></svg>
-      <b>Nenhum processo carregado</b>
-      <span>Anexe uma petição inicial acima para começar a testar a extração.</span>
-    </div>`;
-    wireFiltroFila();
-    return;
-  }
-  const rows = visiveis.map(c=>{
-    const tema = c.fields ? c.fields.tema : '';
-    const statusLabel = c.status==='processando' ? 'Lendo e extraindo dados' : c.status==='erro' ? c.error : 'Extração concluída';
-    const pill = c.status==='processando'
-      ? `<span class="route-pill local"><span class="spin"></span>Processando</span>`
-      : c.source==='ai'
-        ? `<span class="route-pill ai"><i></i>Extração por IA</span>`
-        : `<span class="route-pill local"><i></i>Extração local</span>`;
-    const valorCausa = c.fields && c.fields.valorCausa && !/não localizado/i.test(c.fields.valorCausa) ? c.fields.valorCausa : '';
-    const empresaBadge = c._empresaNome ? `<span class="route-pill local" style="margin-left:8px;"><i></i>${c._empresaNome}</span>` : '';
-    return `<div class="q-row" data-id="${c.id}">
-      <div class="qc-tema">${tema || c.name}${empresaBadge}<span class="sub">${c.name}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}${valorCausa ? ` · ${valorCausa}` : ''}</span></div>
-      <div class="qc-conf">${prazoBadgeHtml(c)}</div>
-      <div>${pill}</div>
-      <div class="qc-status">${statusLabel}</div>
-      <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
-        <button class="mini-btn" data-del="${c.id}" title="Excluir processo" style="color:var(--red); border-color:var(--red); padding:2px 8px;">Excluir</button>
-        <span class="qc-arrow">${c.status==='pronto' ? '›' : ''}</span>
-      </div>
-    </div>`;
-  }).join('');
-  body.innerHTML = filtroHtml + `<div class="queue-table">
-    <div class="q-row head"><div>Processo</div><div>Prazo</div><div>Extração</div><div>Status</div><div></div></div>
-    ${rows}
+  const corpoTabela = visiveis.length===0
+    ? `<div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6M9 16h6M9 8h6"/><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/></svg>
+        <b>Nenhum processo carregado</b>
+        <span>Anexe uma petição inicial acima para começar a testar a extração.</span>
+      </div>`
+    : `<div class="table-wrap"><table>
+        <thead><tr><th>Processo</th><th>Produto</th><th>Tutela urgência</th><th>Prazo estimado</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${visiveis.map(c=>{
+            const numero = c.fields && c.fields.numeroCNJ && !/não localizado/i.test(c.fields.numeroCNJ) ? c.fields.numeroCNJ : c.name;
+            const subtitulo = numero !== c.name ? c.name : '';
+            const tema = c.fields ? c.fields.tema : '—';
+            const empresaBadge = c._empresaNome ? ` <span class="pill info">${c._empresaNome}</span>` : '';
+            const tutelaPill = !c.fields ? '<span class="pill info">a avaliar</span>'
+              : c.fields.pedeTutela ? '<span class="pill risk">detectada</span>' : '<span class="pill info">não detectada</span>';
+            const statusPill = c.status==='processando' ? '<span class="pill warn">lendo e extraindo</span>'
+              : c.status==='erro' ? `<span class="pill risk">${c.error}</span>`
+              : '<span class="pill ok">extração concluída</span>';
+            const podeAbrir = c.status==='pronto' && !modoSomenteLeitura;
+            return `<tr class="q-row" data-id="${c.id}">
+              <td><b>${numero}</b>${subtitulo ? `<div class="mono" style="color:var(--ink-faint); font-size:11px; margin-top:2px;">${subtitulo}${souAdmin && c.criadoPor ? ` · ${c.criadoPor}` : ''}</div>` : ''}</td>
+              <td>${tema}${empresaBadge}</td>
+              <td>${tutelaPill}</td>
+              <td class="mono">${c.prazoDias || 15} dias úteis</td>
+              <td>${statusPill}</td>
+              <td>
+                <div class="row" style="gap:6px; justify-content:flex-end;">
+                  ${podeAbrir ? `<button class="mini-btn" data-abrir="${c.id}">Abrir →</button>` : ''}
+                  <button class="mini-btn danger" data-del="${c.id}" title="Excluir processo">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>`;
+
+  body.innerHTML = `<div class="card">
+    <div class="row between" style="margin-bottom:14px;">
+      <div class="section-title">Fila</div>
+      <span class="count-badge">${visiveis.length}</span>
+    </div>
+    ${filtroHtml}
+    ${corpoTabela}
   </div>`;
   body.querySelectorAll('.q-row[data-id]').forEach(row=>{
     row.addEventListener('click', ()=>{
@@ -2521,6 +2550,13 @@ function renderFila(){
       const id = parseInt(row.dataset.id);
       const c = cases.find(x=>x.id===id);
       if(c && c.status==='pronto'){ currentCaseId=id; renderGeracao(id); goView('geracao'); }
+    });
+  });
+  body.querySelectorAll('button[data-abrir]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const id = parseInt(btn.dataset.abrir);
+      currentCaseId = id; renderGeracao(id); goView('geracao');
     });
   });
   body.querySelectorAll('button[data-del]').forEach(btn=>{
