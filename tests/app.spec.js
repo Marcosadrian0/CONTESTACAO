@@ -417,7 +417,7 @@ test.describe('geração de contestação', () => {
 
   test('sem texto de reconvenção, a seção não aparece na minuta', async ({ page }) => {
     await gerarContestacao(page);
-    await expect(page.locator('#geracaoBody')).not.toContainText('Reconvenção');
+    await expect(page.locator('.page-preview')).not.toContainText('Reconvenção');
   });
 
   test('prazo processual calcula a data-limite e os dias úteis restantes', async ({ page }) => {
@@ -473,6 +473,65 @@ test.describe('geração de contestação', () => {
     await page.click('#genBtn');
     await expect(page.locator('#geracaoBody')).toContainText('Tese padrão do sistema: Cobrança indevida');
     await expect(page.locator('#geracaoBody')).toContainText('Provas mínimas recomendadas');
+  });
+
+  test('documentos do processo: anexar classifica como "a classificar" e permite reclassificar', async ({ page }) => {
+    await gerarContestacao(page);
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('label:has-text("Adicionar")')]);
+    await fc.setFiles(PETICAO_SEM_TUTELA);
+    await expect(page.locator('select[data-doc-class]')).toHaveValue('a_classificar');
+    await page.selectOption('select[data-doc-class]', 'autor');
+    await expect(page.locator('select[data-doc-class]')).toHaveValue('autor');
+    await expect(page.locator('#geracaoBody')).toContainText('peticao-sem-tutela.txt');
+    await expect(page.locator('#geracaoBody')).toContainText('Petição inicial');
+  });
+
+  test('estrutura modular da contestação reflete o estado real do caso (preliminares e reconvenção)', async ({ page }) => {
+    await gerarContestacao(page);
+    const tabela = page.locator('#geracaoBody');
+    await expect(tabela).toContainText('Estrutura modular da contestação');
+    // PETICAO_TESTE pede tutela de urgência, então preliminares processuais já entram na minuta
+    const linhaPreliminares = page.locator('tr', { hasText: 'Preliminares processuais' });
+    await expect(linhaPreliminares).toContainText('na minuta');
+    const linhaReconvencao = page.locator('tr', { hasText: 'Reconvenção' });
+    await expect(linhaReconvencao).toContainText('fora');
+    await page.fill('#reconvencaoInput', 'Texto de reconvenção.');
+    await page.dispatchEvent('#reconvencaoInput', 'change');
+    await expect(linhaReconvencao).toContainText('na minuta');
+  });
+
+  test('pipeline de análise marca matriz de controvérsias e evidências como não implementadas, nunca como concluídas', async ({ page }) => {
+    await gerarContestacao(page);
+    const linhaMatriz = page.locator('div', { hasText: 'Matriz de controvérsias' }).last();
+    await expect(linhaMatriz).toContainText('não implementado');
+    const linhaEvidencias = page.locator('div', { hasText: 'Evidências e prints' }).last();
+    await expect(linhaEvidencias).toContainText('não implementado');
+  });
+
+  test('causa raiz pode ser corrigida manualmente pelo operador na tela de Geração', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.route('**/api/anthropic', async route => {
+      const body = route.request().postDataJSON();
+      if (body.task === 'extract') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          text: JSON.stringify({
+            numeroCNJ: '1002793-96.2026.8.13.0016', autor: 'João da Silva', reu: 'Banco Agibank S.A.',
+            valorCausa: 'R$ 12.500,00', tema: 'Empréstimo consignado', causaRaiz: 'Cobrança indevida',
+            resumo: 'Resumo de teste.', pedidos: ['Repetição de indébito'],
+          }),
+          usage: { input_tokens: 50, output_tokens: 30 },
+        }) });
+      } else {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'not mocked' }) });
+      }
+    });
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#dropzone')]);
+    await fc.setFiles(PETICAO_TESTE);
+    await page.click('.q-row[data-id]');
+    await expect(page.locator('#causaRaizSelect')).toHaveValue('Cobrança indevida');
+    await page.selectOption('#causaRaizSelect', 'Alegação de fraude');
+    await page.click('#genBtn');
+    await expect(page.locator('#geracaoBody')).toContainText('Tese padrão do sistema: Alegação de fraude');
   });
 
   test('clicar em uma linha de Análises reabre a minuta gerada daquele processo', async ({ page }) => {
