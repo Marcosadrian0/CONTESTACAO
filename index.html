@@ -205,6 +205,37 @@ tr:last-child td{border-bottom:none;}
 .pill.warn{background:rgba(156,114,34,.12); color:var(--amber);}
 .pill.risk{background:rgba(160,60,51,.12); color:var(--red);}
 .pill.info{background:var(--bg-raise-2); color:var(--ink-dim);}
+.pill.neutral{background:var(--bg-raise-2); color:var(--ink-faint);}
+
+/* ---------- geração: lista de processos + cabeçalho do caso ---------- */
+.gen-layout{display:flex; gap:18px; align-items:flex-start;}
+.gen-layout > *{min-width:0;}
+.gen-side{width:230px; flex:none;}
+.gen-side .card{padding:16px 14px;}
+.gen-proc-list{display:flex; flex-direction:column; gap:6px;}
+.gen-proc-item{
+  display:block; text-align:left; width:100%; padding:9px 11px; border-radius:10px;
+  border:1px solid var(--line); background:var(--bg-raise-2); cursor:pointer; transition:border-color .12s, background .12s;
+}
+.gen-proc-item:hover{border-color:var(--cyan);}
+.gen-proc-item.active{border-color:var(--cyan); background:var(--cyan-dim);}
+.gen-proc-item b{display:block; font-size:12px; word-break:break-all;}
+.gen-proc-item span{display:block; font-size:11px; color:var(--ink-faint); margin-top:2px;}
+.gen-main{flex:1;}
+.gen-case-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:14px 20px;}
+.gen-case-num{font-family:var(--mono); font-size:14px; font-weight:600;}
+.gen-case-sub{font-size:12px; color:var(--ink-faint); margin-top:2px;}
+
+/* ---------- checklist de prontidão (antes de gerar) ---------- */
+.readiness-bar{height:8px; border-radius:5px; background:var(--bg-raise-2); overflow:hidden; margin:10px 0 16px;}
+.readiness-bar > i{display:block; height:100%; background:var(--green); border-radius:5px;}
+.readiness-item{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;}
+.readiness-item:last-child{border-bottom:none;}
+.readiness-item .ri-icon{width:16px; height:16px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700;}
+.readiness-item.pass .ri-icon{background:rgba(30,122,76,.15); color:var(--green);}
+.readiness-item.fail .ri-icon{background:rgba(160,60,51,.12); color:var(--red);}
+summary{list-style:none;}
+summary::-webkit-details-marker{display:none;}
 
 /* ---------- geração / evidência ---------- */
 .gen-shell{display:grid; grid-template-columns:1fr 360px; gap:18px; align-items:start;}
@@ -1331,11 +1362,14 @@ function teseAplicavelHtml(c){
       </div>`
     : `<div class="ev-body" style="margin:10px 0 0; color:var(--ink-faint);">Nenhuma tese do banco de 286 corresponde a este produto e causa raiz ainda — escolha uma causa raiz acima, quando houver correspondência para "${produtoSistema || f.tema}".</div>`;
   const minutaTexto = match ? (c.teseTextoOverride || match.teseDefensiva) : '';
+  const variacaoLabel = (c.variacaoModelo||'completo')==='objetivo' ? 'Objetivo (Juizado Especial, causa documental simples)' : 'Completo (justiça comum, casos complexos)';
   return `<div class="card">
     <div class="section-title" style="margin-bottom:14px;">Tese aplicável</div>
     <span class="ev-type">causa raiz${causasDoProduto.length ? ` (${causasDoProduto.length} teses para ${produtoSistema})` : ''}</span>
     ${causaRaizSelectHtml(f)}
     ${statusHtml}
+    <span class="ev-type" style="display:block; margin-top:12px;">modelo de contestação</span>
+    <div class="ev-body" style="margin-top:4px;">${variacaoLabel} <span style="color:var(--ink-faint);">— ajustável no seletor "variação do modelo" da Estrutura modular, acima.</span></div>
     ${match ? `
     <span class="ev-type">minuta da tese (editável)</span>
     <textarea class="f-input" id="teseTextoInput" rows="5" style="margin-top:8px; font-family:var(--mono); font-size:12px;">${minutaTexto}</textarea>
@@ -2520,6 +2554,7 @@ function tipoDocBadge(nome){
 function documentosProcessoTableHtml(c){
   const docs = c.documentosApoio || [];
   const linhaInicial = `<tr>
+    <td><input type="checkbox" disabled title="A classificação da petição inicial é fixa"></td>
     <td><b>${c.name}</b></td>
     <td>${tipoDocBadge(c.name)}</td>
     <td><span class="pill ok">Petição inicial</span></td>
@@ -2531,6 +2566,7 @@ function documentosProcessoTableHtml(c){
       ? `<a href="${url}" target="_blank" rel="noopener" style="color:var(--cyan);">${d.nome}</a>`
       : `<span title="Anexado em uma sessão anterior; reanexe para reabrir">${d.nome} <span style="color:var(--amber); font-size:11px;">(reanexar)</span></span>`;
     return `<tr>
+      <td><input type="checkbox" class="doc-check" data-doc-id="${d.id}"></td>
       <td>${nomeHtml}</td>
       <td>${tipoDocBadge(d.nome)}</td>
       <td>
@@ -2766,6 +2802,17 @@ function estruturaModularHtml(c){
 // versão e aparecem como "não implementado", não como "concluído" — nunca finge um passo que
 // não roda. O passo 7 usa o banco de jurisprudência já verificado nesta sessão de
 // desenvolvimento (ver BLOCOS_FIXOS), não uma pesquisa ao vivo por caso.
+// Cópia fiel (para exibição em "Ver Prompt Mestre") do prompt REALMENTE enviado pelo
+// servidor à Anthropic na extração de dados — ver api/anthropic.js, task 'extract'. Mantida
+// em sincronia manualmente: se o prompt do servidor mudar, atualizar aqui também. O texto do
+// processo é anexado ao final pelo servidor, não é digitado pelo operador.
+const PROMPT_MESTRE_EXTRACAO = 'Você é um assistente jurídico interno. Leia o trecho de petição inicial abaixo e responda SOMENTE com um JSON válido, sem markdown e sem texto fora do JSON, no formato exato: '
+  + '{"numeroCNJ":"","autor":"","reu":"","valorCausa":"","tema":"","causaRaiz":"","resumo":"","pedidos":["",""]}. '
+  + 'O campo "tema" deve ser exatamente uma das opções da biblioteca de produtos do sistema, a que melhor descrever o produto financeiro questionado. Se nenhuma se aplicar claramente, usa "Tema não identificado automaticamente, revisar manualmente". '
+  + 'O campo "causaRaiz" deve ser exatamente uma das opções do banco de 286 teses, a que melhor descrever o motivo central da demanda do autor. Se nenhuma se aplicar claramente, usa "Outros". '
+  + 'Se um campo não existir no texto, usa a string "não localizado" (exceto "causaRaiz"). O resumo deve ter no máximo 3 frases, em português. '
+  + 'Texto da petição: [o texto do processo, até 7000 caracteres, é anexado aqui pelo servidor]';
+
 function pipelineAnaliseHtml(c){
   const f = c.fields;
   const passos = [
@@ -2787,10 +2834,100 @@ function pipelineAnaliseHtml(c){
   return `<div class="card">
     <div class="row between" style="margin-bottom:6px;">
       <div class="section-title">Pipeline de análise</div>
+      <details>
+        <summary class="mini-btn" style="display:inline-flex; cursor:pointer; list-style:none;">Ver Prompt Mestre</summary>
+        <div class="ev-body mono" style="white-space:pre-wrap; margin-top:10px; padding:12px; background:var(--bg-raise-2); border-radius:8px; font-size:11.5px;">${PROMPT_MESTRE_EXTRACAO}</div>
+      </details>
     </div>
     <div>${linhas}</div>
-    <div class="callout" style="margin-top:14px;">Os passos marcados como "não implementado" (matriz de controvérsias e evidências com print) fazem parte do roteiro do produto, mas ainda não existem nesta ferramenta — não fingimos que rodam. A jurisprudência usada é um banco fixo já verificado, não uma pesquisa ao vivo por processo. Toda minuta gerada exige revisão e aprovação humana antes do protocolo.</div>
+    <div class="callout" style="margin-top:14px;">Os passos marcados como "não implementado" (matriz de controvérsias e evidências com print) fazem parte do roteiro do produto, mas ainda não existem nesta ferramenta — não fingimos que rodam. A jurisprudência usada é um banco fixo já verificado, não uma pesquisa ao vivo por processo. Toda minuta gerada exige revisão e aprovação humana antes do protocolo. O texto acima em "Ver Prompt Mestre" é o prompt real enviado ao modelo na etapa de extração (passo 2).</div>
   </div>`;
+}
+
+// Lista de processos que aparece ao lado da tela de Geração, para trocar de processo sem
+// voltar para a Fila. Mesmo filtro de visibilidade da Fila (todos/só os meus); só entram
+// processos com extração concluída (status 'pronto'), os únicos que dá para abrir aqui.
+function listaProcessosHtml(c){
+  const souAdmin = currentUser && currentUser.papel === 'admin';
+  const visiveis = (souAdmin && filaFiltro === 'todos' ? cases : cases.filter(x => currentUser && x.criadoPor === currentUser.usuario))
+    .filter(x => x.status === 'pronto');
+  if(!visiveis.length) return '<div class="ev-body">Nenhum processo pronto para abrir.</div>';
+  return visiveis.map(x=>{
+    const numero = (x.fields && x.fields.numeroCNJ && !/não localizado/i.test(x.fields.numeroCNJ)) ? x.fields.numeroCNJ : x.name;
+    const produto = x.fields ? x.fields.tema : '—';
+    return `<button type="button" class="gen-proc-item ${x.id===c.id?'active':''}" data-proc-id="${x.id}">
+      <b>${numero}</b><span>${produto}</span>
+    </button>`;
+  }).join('');
+}
+
+// Checklist de prontidão: cada item reflete uma condição verificável no estado real do
+// processo (campos, documentos, banco de teses) — igual ao Pipeline de análise acima, nunca
+// um valor fixo. Fica antes do botão "Gerar contestação", como um resumo do que falta.
+function checklistProntidaoHtml(c){
+  const f = c.fields;
+  const docs = c.documentosApoio || [];
+  const match = tesesSistemaDoMerito(f.tema, f.causaRaiz)[0];
+  const itens = [
+    { label:'Petição inicial anexada', pass: !!c.rawText },
+    { label:'Documentos do autor anexados', pass: docs.some(d=>d.classificacao==='autor') },
+    { label:'Documentos da ré anexados', pass: docs.some(d=>d.classificacao==='re') },
+    { label:'Documentos classificados', pass: docs.every(d=>d.classificacao!=='a_classificar') },
+    { label:'Produto classificado', pass: !!f.tema && !/não identificado/i.test(f.tema) },
+    { label:'Modelo de contestação aplicável', pass: !!TEMA_PRODUTOS[f.tema] },
+    { label:'Dados extraídos da inicial (IA)', pass: c.source==='ai' },
+    { label:'Jurisprudência mapeada pela causa raiz', pass: !!match },
+    { label:'Tutela de urgência avaliada', pass: f.pedeTutela !== undefined },
+    { label:'Minuta gerada (pendente de revisão humana)', pass: !!c.contestacao },
+  ];
+  const passed = itens.filter(i=>i.pass).length;
+  const pct = Math.round((passed/itens.length)*100);
+  const linhas = itens.map(i => `<div class="readiness-item ${i.pass?'pass':'fail'}">
+    <span class="ri-icon">${i.pass?'✓':'✗'}</span><span>${i.label}</span>
+  </div>`).join('');
+  return `<div class="card">
+    <div class="row between"><div class="section-title">Checklist de qualidade</div><span class="mono" style="font-size:13px; font-weight:600;">${pct}%</span></div>
+    <div class="readiness-bar"><i style="width:${pct}%"></i></div>
+    ${linhas}
+    <div class="callout" style="margin-top:14px;">Unifica as opções do processo (tese selecionada, documentos classificados e padrões) e produz a minuta de contestação no formato dos anexos. Revisão humana obrigatória antes do protocolo.</div>
+  </div>`;
+}
+
+// "Baixar (.txt)": exporta o melhor esforço atual (montarSecoes recalculado na hora), mesmo
+// antes de "Gerar contestação" consolidar a versão oficial — útil para conferência rápida ou
+// para colar em outro lugar. Não é o arquivo protocolável: esse é sempre o .doc gerado depois
+// de "Gerar contestação".
+function baixarTextoPlano(c){
+  let secoes;
+  try{ secoes = montarSecoes(c); }catch(e){ alert('Ainda não há dados suficientes extraídos para montar um texto.'); return; }
+  const texto = secoes.map((s,i)=>`${i+1}. ${s.t}\n${s.b}`).join('\n\n');
+  const blob = new Blob([texto], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const f = c.fields;
+  const safeName = (f.numeroCNJ && !/não localizado/i.test(f.numeroCNJ)) ? f.numeroCNJ.replace(/[^\w.-]/g,'_') : ('processo_'+c.id);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Contestacao_${safeName}.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+// "Prévia / Imprimir": mesma renderização usada no arquivo final (buildWordHtml), mas a
+// partir do melhor esforço atual, sem exigir que "Gerar contestação" já tenha rodado antes.
+// Usa c.contestacao só temporariamente (buildWordHtml depende dele) e restaura o valor
+// original em seguida — não grava nada em c nem marca o processo como baixado.
+function preverMinutaAtual(c){
+  let secoes;
+  try{ secoes = montarSecoes(c); }catch(e){ alert('Ainda não há dados suficientes extraídos para montar uma prévia.'); return; }
+  const contestacaoOriginal = c.contestacao;
+  c.contestacao = { secoes, source: c.source, generatedAt: new Date(), geradoPor: currentUser ? currentUser.usuario : null };
+  const html = buildWordHtml(c);
+  c.contestacao = contestacaoOriginal;
+  const w = window.open('', '_blank');
+  if(!w){ alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este arquivo e tente novamente.'); return; }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(), 300);
 }
 
 function renderGeracao(id){
@@ -2820,74 +2957,139 @@ function renderGeracao(id){
   const clienteOptions = `<option value="">Padrão do sistema (sem logo, margens padrão)</option>` +
     clientes.map(cl => `<option value="${cl.id}" ${c.clienteId===cl.id?'selected':''}>${cl.nome}</option>`).join('');
 
+  const numeroExibido = (f.numeroCNJ && !/não localizado/i.test(f.numeroCNJ)) ? f.numeroCNJ : c.name;
+  const statusPillGen = c.contestacao ? '<span class="pill ok">minuta gerada</span>' : '<span class="pill neutral">novo</span>';
+
   body.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <div class="back-link" id="backToFila">‹ voltar para a fila</div>
-      <button class="mini-btn" id="excluirProcessoBtn" style="color:var(--red); border-color:var(--red);">Excluir processo</button>
-    </div>
     <div class="view-head">
-      <div class="kicker">${c.name}</div>
-      <h1>${f.tema}</h1>
+      <h1>Geração</h1>
       <p>Estrutura e teses seguem o modelo padrão validado a partir de três contestações reais do Agibank: numeração sequencial garantida pelo gerador, nenhum título repetido, preliminares sempre agrupadas antes do mérito.</p>
     </div>
-    <div id="stepperWrap">${renderStepper(c)}</div>
-    <div class="gen-toolbar">
-      <div class="status-chip ${c.source==='ai'?'ai':'local'}"><i></i>${sourceLabel}</div>
-      ${f.pedeTutela ? '<div class="status-chip local"><i></i>tutela de urgência identificada na inicial, seção de preliminares incluída automaticamente</div>' : ''}
-    </div>
-    <div class="card">
-      <div class="row between" style="margin-bottom:14px;">
-        <div class="section-title">Documentos do processo</div>
-        <label class="mini-btn" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-          Adicionar
-          <input type="file" id="docsApoioInput" multiple accept=".pdf,.docx,.txt,.jpg,.jpeg,.png" style="display:none;">
-        </label>
-      </div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Arquivo</th><th>Tipo</th><th>Classificação (parte)</th><th></th></tr></thead>
-        <tbody>${documentosProcessoTableHtml(c)}</tbody>
-      </table></div>
-      <div class="callout" style="margin-top:14px;">Etapa 1 do fluxo de análise: classificação dos documentos por parte. Um documento anexado só entra na extração por IA (botão abaixo) quando classificado como "Documento do autor" — documento ilegível, sem texto reconhecível, ou ainda "a classificar" não é tratado como fato comprovado.</div>
-    </div>
-    <div class="card">
-      <div class="row between" style="margin-bottom:10px;">
-        <div class="section-title">Extração de dados (IA)</div>
-        <button class="mini-btn" id="reextrairBtn">Extrair dados da inicial e documentos</button>
-      </div>
-      <div class="callout" style="margin:0;">Ao rodar, refaz a extração usando o texto da petição inicial somado ao dos documentos já classificados como "Documento do autor". Útil depois de anexar e classificar documentos que não estavam disponíveis na primeira leitura. Ausências continuam marcadas como "não localizado" — nunca inventadas.</div>
-    </div>
-    ${estruturaModularHtml(c)}
-    ${pipelineAnaliseHtml(c)}
-    ${teseAplicavelHtml(c)}
-    <div class="card">
-      <div class="section-title" style="margin-bottom:14px;">Configurações da minuta</div>
-      ${f.source==='local' ? `<div class="callout" style="margin-bottom:14px;"><b>Extração local, conferir com atenção.</b> Sem IA disponível no momento da leitura, os campos extraídos automaticamente (aba "Documentos do processo" e "Extração de dados") podem vir incompletos ou incorretos — confira antes de gerar, ou use "Extrair dados da inicial e documentos" para tentar de novo.</div>` : ''}
-      <div class="ev-card">
-        <span class="ev-type">prazo processual (estimativa)</span>
-        <div class="f-row4" style="grid-template-columns:1fr 90px; margin-top:8px; margin-bottom:6px;">
-          <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Data da citação/intimação</label><input class="f-input" style="margin-bottom:0" type="date" id="dataCitacaoInput" value="${c.dataCitacao || ''}"></div>
-          <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Dias úteis</label><input class="f-input" style="margin-bottom:0" type="number" min="1" id="prazoDiasInput" value="${c.prazoDias || 15}"></div>
+    <div class="gen-layout">
+      <aside class="gen-side">
+        <div class="card">
+          <div class="section-title" style="margin-bottom:10px;">Processos</div>
+          <div class="gen-proc-list">${listaProcessosHtml(c)}</div>
         </div>
-        <div class="ev-body" id="prazoResultado">${c.dataLimite ? `vence em ${new Date(c.dataLimite).toLocaleDateString('pt-BR')} (${diasUteisRestantes(c.dataLimite)}d úteis)` : 'informe a data da citação para calcular'}</div>
-        <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Estimativa por dias úteis (só desconta sábado e domingo, sem calendário de feriados forenses). Sempre conferir o prazo real no processo oficial.</div>
+      </aside>
+      <div class="gen-main">
+        <div class="card gen-case-head">
+          <div>
+            <div class="gen-case-num">${numeroExibido}</div>
+            <div class="gen-case-sub">${f.tema || '—'}</div>
+          </div>
+          <div class="row" style="gap:8px;">
+            ${statusPillGen}
+            <button class="mini-btn" id="backToFila">‹ fila</button>
+            <button class="mini-btn danger" id="excluirProcessoBtn">Excluir processo</button>
+          </div>
+        </div>
+        <div id="stepperWrap" style="margin:14px 0 0;">${renderStepper(c)}</div>
+        <div class="gen-toolbar">
+          <div class="status-chip ${c.source==='ai'?'ai':'local'}"><i></i>${sourceLabel}</div>
+          ${f.pedeTutela ? '<div class="status-chip local"><i></i>tutela de urgência identificada na inicial, seção de preliminares incluída automaticamente</div>' : ''}
+        </div>
+        <div class="card">
+          <div class="row between" style="margin-bottom:14px;">
+            <div class="section-title">Documentos do processo</div>
+            <label class="mini-btn" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+              Adicionar
+              <input type="file" id="docsApoioInput" multiple accept=".pdf,.docx,.txt,.jpg,.jpeg,.png" style="display:none;">
+            </label>
+          </div>
+          <div class="row" id="bulkClassifyBar" style="display:none; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
+            <span style="font-size:12px; color:var(--ink-dim);"><b id="bulkCount">0</b> selecionado(s)</span>
+            <select id="bulkClassifySelect" class="f-input" style="margin:0; width:auto; padding:6px 10px; font-size:12px;">
+              ${CLASSIFICACOES_DOC.map(op=>`<option value="${op.id}">${op.label}</option>`).join('')}
+            </select>
+            <button class="mini-btn" id="bulkClassifyApply">Classificar selecionados</button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th style="width:24px;"><input type="checkbox" id="docCheckAll"></th><th>Arquivo</th><th>Tipo</th><th>Classificação (parte)</th><th></th></tr></thead>
+            <tbody>${documentosProcessoTableHtml(c)}</tbody>
+          </table></div>
+          <div class="callout" style="margin-top:14px;">Etapa 1 do fluxo de análise: classificação dos documentos por parte. Marque vários documentos e use a barra acima para classificar em massa. Um documento anexado só entra na extração por IA (botão abaixo) quando classificado como "Documento do autor" — documento ilegível, sem texto reconhecível, ou ainda "a classificar" não é tratado como fato comprovado.</div>
+        </div>
+        <div class="card">
+          <div class="row between" style="margin-bottom:10px;">
+            <div class="section-title">Extração de dados (IA)</div>
+            <button class="btn-generate" id="reextrairBtn" style="width:auto; padding:9px 16px; font-size:12.5px;">Extrair dados da inicial e documentos</button>
+          </div>
+          <div class="callout" style="margin:0;">Ao rodar, refaz a extração usando o texto da petição inicial somado ao dos documentos já classificados como "Documento do autor". Útil depois de anexar e classificar documentos que não estavam disponíveis na primeira leitura. Ausências continuam marcadas como "não localizado" — nunca inventadas.</div>
+        </div>
+        ${estruturaModularHtml(c)}
+        ${pipelineAnaliseHtml(c)}
+        ${teseAplicavelHtml(c)}
+        <div class="card">
+          <div class="section-title" style="margin-bottom:14px;">Configurações da minuta</div>
+          ${f.source==='local' ? `<div class="callout" style="margin-bottom:14px;"><b>Extração local, conferir com atenção.</b> Sem IA disponível no momento da leitura, os campos extraídos automaticamente (aba "Documentos do processo" e "Extração de dados") podem vir incompletos ou incorretos — confira antes de gerar, ou use "Extrair dados da inicial e documentos" para tentar de novo.</div>` : ''}
+          <div class="ev-card">
+            <span class="ev-type">prazo processual (estimativa)</span>
+            <div class="f-row4" style="grid-template-columns:1fr 90px; margin-top:8px; margin-bottom:6px;">
+              <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Data da citação/intimação</label><input class="f-input" style="margin-bottom:0" type="date" id="dataCitacaoInput" value="${c.dataCitacao || ''}"></div>
+              <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Dias úteis</label><input class="f-input" style="margin-bottom:0" type="number" min="1" id="prazoDiasInput" value="${c.prazoDias || 15}"></div>
+            </div>
+            <div class="ev-body" id="prazoResultado">${c.dataLimite ? `vence em ${new Date(c.dataLimite).toLocaleDateString('pt-BR')} (${diasUteisRestantes(c.dataLimite)}d úteis)` : 'informe a data da citação para calcular'}</div>
+            <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Estimativa por dias úteis (só desconta sábado e domingo, sem calendário de feriados forenses). Sempre conferir o prazo real no processo oficial.</div>
+          </div>
+          <div class="ev-card">
+            <span class="ev-type">padrão de documento (cliente)</span>
+            <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
+            <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
+          </div>
+          <div class="ev-card">
+            <span class="ev-type">reconvenção (opcional)</span>
+            <textarea class="f-input" id="reconvencaoInput" rows="3" placeholder="Preencha só se a instituição ré pretende apresentar reconvenção. O texto entra, exatamente como escrito aqui, como seção final da minuta." style="margin-top:8px;">${c.reconvencaoTexto || ''}</textarea>
+            <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Pedido independente contra a parte autora — a ferramenta nunca redige uma reconvenção sozinha, precisa ser escrita por um advogado. Deixe em branco para não incluir esta seção.</div>
+          </div>
+        </div>
+        ${checklistProntidaoHtml(c)}
+        <div class="row" style="gap:10px; flex-wrap:wrap;">
+          <button class="mini-btn" id="baixarTxtBtn">Baixar (.txt)</button>
+          <button class="mini-btn" id="previaBtn">Prévia / Imprimir</button>
+          <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="flex:1; justify-content:center;">${genLabel}</button>
+        </div>
+        ${c.contestacao ? renderContestacaoBlock(c) : ''}
       </div>
-      <div class="ev-card">
-        <span class="ev-type">padrão de documento (cliente)</span>
-        <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
-        <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
-      </div>
-      <div class="ev-card">
-        <span class="ev-type">reconvenção (opcional)</span>
-        <textarea class="f-input" id="reconvencaoInput" rows="3" placeholder="Preencha só se a instituição ré pretende apresentar reconvenção. O texto entra, exatamente como escrito aqui, como seção final da minuta." style="margin-top:8px;">${c.reconvencaoTexto || ''}</textarea>
-        <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Pedido independente contra a parte autora — a ferramenta nunca redige uma reconvenção sozinha, precisa ser escrita por um advogado. Deixe em branco para não incluir esta seção.</div>
-      </div>
-    </div>
-    <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="width:100%; justify-content:center;">${genLabel}</button>
-    ${c.contestacao ? renderContestacaoBlock(c) : ''}`;
+    </div>`;
   document.getElementById('backToFila').addEventListener('click', ()=>{ goView('fila'); renderFila(); });
   document.getElementById('excluirProcessoBtn').addEventListener('click', ()=>excluirProcesso(id));
   document.getElementById('genBtn').addEventListener('click', ()=>generateContestacao(id));
+  document.getElementById('baixarTxtBtn').addEventListener('click', ()=>baixarTextoPlano(c));
+  document.getElementById('previaBtn').addEventListener('click', ()=>preverMinutaAtual(c));
+  body.querySelectorAll('button[data-proc-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const pid = parseInt(btn.dataset.procId);
+      if(pid !== id){ currentCaseId = pid; renderGeracao(pid); }
+    });
+  });
+  const docCheckAll = document.getElementById('docCheckAll');
+  const bulkBar = document.getElementById('bulkClassifyBar');
+  const bulkCount = document.getElementById('bulkCount');
+  function docChecks(){ return Array.from(body.querySelectorAll('input.doc-check')); }
+  function atualizarBarraClassificacao(){
+    const marcados = docChecks().filter(ch=>ch.checked);
+    bulkCount.textContent = marcados.length;
+    bulkBar.style.display = marcados.length ? 'flex' : 'none';
+  }
+  docChecks().forEach(ch=>ch.addEventListener('change', atualizarBarraClassificacao));
+  if(docCheckAll){
+    docCheckAll.addEventListener('change', ()=>{
+      docChecks().forEach(ch=>{ ch.checked = docCheckAll.checked; });
+      atualizarBarraClassificacao();
+    });
+  }
+  const bulkApply = document.getElementById('bulkClassifyApply');
+  if(bulkApply){
+    bulkApply.addEventListener('click', ()=>{
+      const novaClass = document.getElementById('bulkClassifySelect').value;
+      const idsMarcados = docChecks().filter(ch=>ch.checked).map(ch=>ch.dataset.docId);
+      (c.documentosApoio||[]).forEach(d=>{ if(idsMarcados.includes(d.id)) d.classificacao = novaClass; });
+      salvarEstado();
+      renderGeracao(id);
+    });
+  }
   document.getElementById('clienteSelect').addEventListener('change', e=>{
     c.clienteId = e.target.value ? parseInt(e.target.value) : null;
     salvarEstado();
