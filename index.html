@@ -553,7 +553,7 @@ html[data-theme="dark"] .auth-screen{
     <div class="tab" data-view="geracao">Geração</div>
     <div class="tab" data-view="teses">Banco de teses</div>
     <div class="tab" data-view="analises">Análises</div>
-    <div class="tab" data-view="padroes">Padrões por cliente</div>
+    <div class="tab" data-view="padroes">Padrões</div>
     <div class="tab" data-view="admin" id="tabAdmin" style="display:none">Admin</div>
   </div>
   <div class="side-foot">
@@ -849,7 +849,7 @@ function logout(){
   modoSomenteLeitura = false;
   empresaAtivaAdmin = null;
   empresasCache = [];
-  cases = []; analyses = []; clientes = []; teses = []; tesesSistemaOcultas = []; modelosContestacao = [];
+  cases = []; analyses = []; teses = []; tesesSistemaOcultas = []; modelosContestacao = [];
   limparSessao();
   showLogin();
 }
@@ -1089,8 +1089,11 @@ function renderAdminBody(usuarios, iaCfg = ultimoIaCfg){
 let cases = [];
 let analyses = [];
 let idSeq = 1;
-let clientes = [];
-let clienteSeq = 1;
+// Identidade visual por cliente (logo/margens/rodapé) foi removida da tela de Padrões — o
+// array fica aqui, sempre vazio, só para as funções de geração do documento (buildWordHtml,
+// renderContestacaoBlock) continuarem resolvendo "sem cliente" sem precisar checar undefined
+// em cada uma; todo documento gerado usa o padrão do sistema (MARGEM_PADRAO/FONTE_PADRAO).
+const clientes = [];
 let teses = [];
 let teseSeq = 1;
 let modelosContestacao = [];
@@ -1119,7 +1122,6 @@ async function carregarTesesSistema(){
 }
 const MARGEM_PADRAO = { top:2.5, bottom:2.5, left:3, right:2.5 };
 const FONTE_PADRAO = { familia:'Times New Roman', tamanho:12, espacamento:1.5 };
-const FONTES_DISPONIVEIS = ['Times New Roman', 'Arial', 'Calibri', 'Georgia'];
 let filaFiltro = 'todos'; // 'todos' | 'meus' — só tem efeito para papel admin, operador sempre vê só os seus
 
 // Persistência compartilhada por empresa (api/dados.js, Postgres) — cada empresa só lê e
@@ -1144,7 +1146,7 @@ async function carregarEmpresas(){
 
 function salvarEstado(){
   if(modoSomenteLeitura) return; // "todas as empresas": nada para gravar, ver restaurarEstado
-  const dados = { cases, analyses, idSeq, clientes, clienteSeq, teses, teseSeq, tesesSistemaOcultas, modelosContestacao, modeloSeq };
+  const dados = { cases, analyses, idSeq, teses, teseSeq, tesesSistemaOcultas, modelosContestacao, modeloSeq };
   const body = { action:'salvar', dados };
   if(currentUser && currentUser.papel==='admin' && empresaAtivaAdmin && empresaAtivaAdmin!=='todas'){
     body.empresaId = empresaAtivaAdmin;
@@ -1167,31 +1169,27 @@ async function restaurarEstado(){
 
     if(data.modo === 'todas'){
       modoSomenteLeitura = true;
-      cases = []; analyses = []; clientes = []; teses = []; tesesSistemaOcultas = []; modelosContestacao = [];
-      let maxIdSeq=1, maxClienteSeq=1, maxTeseSeq=1;
+      cases = []; analyses = []; teses = []; tesesSistemaOcultas = []; modelosContestacao = [];
+      let maxIdSeq=1, maxTeseSeq=1;
       (data.empresas||[]).forEach(e=>{
         const d = e.dados || {};
         (d.cases||[]).forEach(c=>cases.push({ ...c, _empresaNome:e.empresaNome, _empresaId:e.empresaId }));
         (d.analyses||[]).forEach(a=>analyses.push({ ...a, _empresaNome:e.empresaNome }));
-        (d.clientes||[]).forEach(cl=>clientes.push({ ...cl, _empresaNome:e.empresaNome }));
         (d.teses||[]).forEach(t=>teses.push({ ...t, _empresaNome:e.empresaNome }));
         maxIdSeq = Math.max(maxIdSeq, d.idSeq||1);
-        maxClienteSeq = Math.max(maxClienteSeq, d.clienteSeq||1);
         maxTeseSeq = Math.max(maxTeseSeq, d.teseSeq||1);
       });
-      idSeq = maxIdSeq; clienteSeq = maxClienteSeq; teseSeq = maxTeseSeq;
+      idSeq = maxIdSeq; teseSeq = maxTeseSeq;
     } else {
       modoSomenteLeitura = false;
       if(currentUser && currentUser.papel==='admin') empresaAtivaAdmin = data.empresaId;
       const d = data.dados || {};
       cases = Array.isArray(d.cases) ? d.cases : [];
       analyses = Array.isArray(d.analyses) ? d.analyses : [];
-      clientes = Array.isArray(d.clientes) ? d.clientes : [];
       teses = Array.isArray(d.teses) ? d.teses : [];
       tesesSistemaOcultas = Array.isArray(d.tesesSistemaOcultas) ? d.tesesSistemaOcultas : [];
       modelosContestacao = Array.isArray(d.modelosContestacao) ? d.modelosContestacao : [];
       idSeq = typeof d.idSeq === 'number' ? d.idSeq : 1;
-      clienteSeq = typeof d.clienteSeq === 'number' ? d.clienteSeq : 1;
       teseSeq = typeof d.teseSeq === 'number' ? d.teseSeq : 1;
       modeloSeq = typeof d.modeloSeq === 'number' ? d.modeloSeq : 1;
     }
@@ -1481,22 +1479,6 @@ function tesesDoTema(tema){
   return teses.filter(t => t.produto === tema);
 }
 
-// Monta uma minuta de exemplo (sem processo real carregado), usada só para pré-visualização
-// do modelo de documento na aba Padrões por cliente. Mostra a seção de tutela para exibir a
-// estrutura completa; os únicos trechos que variam por processo real (resumo e regularidade
-// dos descontos) aparecem com texto de espaço reservado, claramente identificado.
-function secoesExemploPreview(){
-  const temaExemplo = 'Empréstimo consignado';
-  return montarSecoes({
-    fields: {
-      tema: temaExemplo,
-      resumo: '[o resumo da petição inicial real aparece aqui, extraído automaticamente na aba Fila]',
-      pedeTutela: true,
-      regularidadeTexto: TEMA_PRODUTOS[temaExemplo].regularidade,
-    },
-  });
-}
-
 function checkQuality(f, secoes){
   const notLocated = v => !v || /não localizado/i.test(v);
   const titulos = secoes.map(s => s.t.trim().toLowerCase());
@@ -1763,313 +1745,9 @@ function usarTeseSistemaComoBase(t){
   document.getElementById('tesePedido').focus();
 }
 
-/* ---------------- padrões por cliente ---------------- */
-const NUMERACAO_OPCOES = {
-  'nenhuma': 'Sem numeração',
-  'rodape-esquerda': 'Rodapé, à esquerda',
-  'rodape-centro': 'Rodapé, ao centro',
-  'rodape-direita': 'Rodapé, à direita',
-  'cabecalho-direita': 'Cabeçalho, à direita',
-};
-
 function renderPadroes(){
   salvarEstado();
-  const body = document.getElementById('padroesBody');
-  const resumoModo = cl => cl.headerMode==='anexar' ? 'Cabeçalho anexado (imagem pronta)'
-    : cl.headerMode==='montar' ? 'Cabeçalho montado no sistema' : 'Sem identidade visual';
-  const listaHtml = clientes.length === 0
-    ? `<div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        <b>Nenhum cliente cadastrado</b>
-        <span>Use o formulário ao lado para cadastrar o primeiro padrão de documento.</span>
-      </div>`
-    : `<div class="client-list">${clientes.map(cl => `
-        <div class="client-card">
-          <div class="client-card-head">
-            <div>
-              <div class="client-name">${cl.nome}${cl._empresaNome ? ` <span style="font-weight:400; color:var(--ink-faint); font-size:11px;">· ${cl._empresaNome}</span>` : ''}</div>
-              <div class="client-badges">
-                <span class="client-badge ${cl.headerMode!=='nenhum' ? '' : 'off'}">${resumoModo(cl)}</span>
-                <span class="client-badge ${cl.margensPersonalizadas ? '' : 'off'}">${cl.margensPersonalizadas ? `Margens ${cl.margens.top}/${cl.margens.right}/${cl.margens.bottom}/${cl.margens.left} cm` : 'Margens do sistema'}</span>
-                <span class="client-badge ${cl.rodapeAtivo ? '' : 'off'}">${cl.rodapeAtivo ? 'Rodapé ativo' : 'Sem rodapé'}</span>
-                <span class="client-badge ${cl.marcaDaguaAtiva ? '' : 'off'}">${cl.marcaDaguaAtiva ? `Marca d'água: ${cl.marcaDaguaTexto||''}` : 'Sem marca d’água'}</span>
-                <span class="client-badge">${cl.fonte || FONTE_PADRAO.familia}, ${cl.fonteTamanho || FONTE_PADRAO.tamanho}pt</span>
-                <span class="client-badge ${cl.numeracaoPagina && cl.numeracaoPagina!=='nenhuma' ? '' : 'off'}">${NUMERACAO_OPCOES[cl.numeracaoPagina||'nenhuma']}</span>
-              </div>
-            </div>
-          </div>
-          <div style="border-radius:8px; overflow:hidden; border:1px solid var(--line); margin-bottom:4px;">${previewCabecalho(cl, true)}</div>
-          <div class="client-actions">
-            <button class="mini-btn" data-edit="${cl.id}">Editar</button>
-            <button class="mini-btn danger" data-del="${cl.id}">Remover</button>
-          </div>
-        </div>`).join('')}</div>`;
-
-  body.innerHTML = `<div id="modelosContestacaoWrap"></div>
-  <div class="section-title" style="margin:24px 0 4px;">Identidade visual por cliente</div>
-  <div class="ev-body" style="margin-bottom:16px;">Cadastre logo e margens por cliente. Na hora de gerar ou baixar a contestação, escolha o padrão a aplicar: alguns clientes querem logo e margem específica, outros só a logo, outros nenhum dos dois. O formulário abaixo mostra, ao lado, uma prévia em escala real do modelo completo de documento, mesmo antes de qualquer processo real ser carregado.</div>
-  <div class="client-shell">
-    <div class="client-form">
-      <h3 id="clientFormTitle">Novo padrão de cliente</h3>
-      <input type="hidden" id="clientEditId" value="">
-      <label class="f-label">Nome do cliente</label>
-      <input class="f-input" id="clientNome" placeholder="ex.: Banco Agibank S.A.">
-
-      <div class="pad-tabs" id="padTabs">
-        <button type="button" class="pad-tab active" data-tab="aparencia">Aparência</button>
-        <button type="button" class="pad-tab" data-tab="conteudo">Conteúdo</button>
-        <button type="button" class="pad-tab" data-tab="avancado">Avançado</button>
-      </div>
-
-      <div class="pad-tab-panel active" id="padPanelAparencia">
-        <label class="f-label">Cabeçalho do documento</label>
-        <select class="f-input" id="headerMode">
-          <option value="nenhum">Nenhum (documento sem identidade visual)</option>
-          <option value="montar">Montar cabeçalho no sistema</option>
-          <option value="anexar">Anexar cabeçalho pronto (imagem)</option>
-        </select>
-
-        <div id="headerPreviewWrap" style="border-radius:8px; overflow:hidden; border:1px solid var(--line); margin-bottom:14px;"></div>
-
-        <div id="camposMontar">
-          <label class="f-label">Logo</label>
-          <div class="logo-preview" id="logoPreview"><span>nenhuma logo selecionada</span></div>
-          <input type="file" accept="image/*" id="clientLogoInput" class="f-input" style="padding:6px;">
-          <label class="f-label">Posição da logo</label>
-          <select class="f-input" id="headerLogoPos"><option value="left">Esquerda</option><option value="center">Centro</option></select>
-          <label class="f-label">Cor da tarja</label>
-          <input type="color" id="headerCor" value="#1a56db" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line-strong); margin-bottom:14px; background:var(--bg);">
-          <label class="f-check"><input type="checkbox" id="headerPontinhos" checked> Incluir pontinhos decorativos (estilo do exemplo do Agibank)</label>
-        </div>
-
-        <div id="camposAnexar" style="display:none;">
-          <label class="f-label">Imagem do cabeçalho completo (banner)</label>
-          <div class="logo-preview" id="bannerPreview" style="height:56px;"><span>nenhuma imagem selecionada</span></div>
-          <input type="file" accept="image/*" id="bannerInput" class="f-input" style="padding:6px;">
-        </div>
-      </div>
-
-      <div class="pad-tab-panel" id="padPanelConteudo" style="display:none;">
-        <label class="f-check"><input type="checkbox" id="rodapeAtivo"> Incluir rodapé de texto (ex.: telefone, site, CNPJ)</label>
-        <input class="f-input" id="rodapeTexto" placeholder="ex.: (11) 0000-0000 · www.empresa.com.br · Empresa S.A · CNPJ 00.000.000/0001-00">
-        <label class="f-check"><input type="checkbox" id="marcaDaguaAtiva"> Incluir marca d'água</label>
-        <input class="f-input" id="marcaDaguaTexto" placeholder="ex.: MINUTA, CONFIDENCIAL, nome do cliente">
-        <div class="ev-body" style="margin-top:-6px; margin-bottom:14px; color:var(--ink-faint);">A marca d'água aparece na pré-visualização e no arquivo impresso/PDF; no .doc baixado, por limitação do formato usado, aparece como texto no cabeçalho, sem a rotação diagonal.</div>
-      </div>
-
-      <div class="pad-tab-panel" id="padPanelAvancado" style="display:none;">
-        <label class="f-check"><input type="checkbox" id="clientMargensPersonalizadas"> Usar margens personalizadas (senão, usa o padrão do sistema)</label>
-        <div class="f-row4">
-          <div><label>Superior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgTop" value="2.5"></div>
-          <div><label>Direita (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgRight" value="2.5"></div>
-          <div><label>Inferior (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgBottom" value="2.5"></div>
-          <div><label>Esquerda (cm)</label><input class="f-input" style="margin-bottom:0" type="number" step="0.1" id="mgLeft" value="3"></div>
-        </div>
-        <label class="f-label">Fonte</label>
-        <select class="f-input" id="fonteSelect">${FONTES_DISPONIVEIS.map(f=>`<option value="${f}">${f}</option>`).join('')}</select>
-        <div class="f-row4" style="grid-template-columns:1fr 1fr;">
-          <div><label>Tamanho (pt)</label><select class="f-input" style="margin-bottom:0" id="fonteTamanho"><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option></select></div>
-          <div><label>Espaçamento entre linhas</label><select class="f-input" style="margin-bottom:0" id="espacamentoSelect"><option value="1">Simples</option><option value="1.15">1,15</option><option value="1.5">1,5</option><option value="2">Duplo</option></select></div>
-        </div>
-        <label class="f-label" style="margin-top:14px;">Numeração de página</label>
-        <select class="f-input" id="numeracaoSelect">${Object.entries(NUMERACAO_OPCOES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
-        <div class="ev-body" style="margin-top:-6px; color:var(--ink-faint);">No .doc baixado, a numeração real (\"1 de N\") depende da paginação do Word ao abrir o arquivo; na pré-visualização aqui é só ilustrativa.</div>
-      </div>
-
-      <button class="btn-generate" id="saveClientBtn" style="width:100%; justify-content:center; margin-top:14px;">Salvar padrão</button>
-    </div>
-    <div>
-      <div id="docPreviewPanel" style="margin-bottom:22px;"></div>
-      ${listaHtml}
-    </div>
-  </div>`;
-
-  let logoDataUrlTemp = null;
-  let bannerDataUrlTemp = null;
-
-  function estadoAtual(){
-    return {
-      headerMode: document.getElementById('headerMode').value,
-      logoDataUrl: logoDataUrlTemp,
-      headerLogoPos: document.getElementById('headerLogoPos').value,
-      headerCor: document.getElementById('headerCor').value,
-      headerPontinhos: document.getElementById('headerPontinhos').checked,
-      headerBannerDataUrl: bannerDataUrlTemp,
-      rodapeAtivo: document.getElementById('rodapeAtivo').checked,
-      rodapeTexto: document.getElementById('rodapeTexto').value,
-      marcaDaguaAtiva: document.getElementById('marcaDaguaAtiva').checked,
-      marcaDaguaTexto: document.getElementById('marcaDaguaTexto').value,
-      fonte: document.getElementById('fonteSelect').value,
-      fonteTamanho: parseInt(document.getElementById('fonteTamanho').value) || FONTE_PADRAO.tamanho,
-      espacamento: parseFloat(document.getElementById('espacamentoSelect').value) || FONTE_PADRAO.espacamento,
-      numeracaoPagina: document.getElementById('numeracaoSelect').value,
-    };
-  }
-  function margensAtuais(){
-    return document.getElementById('clientMargensPersonalizadas').checked ? {
-      top: parseFloat(document.getElementById('mgTop').value) || MARGEM_PADRAO.top,
-      right: parseFloat(document.getElementById('mgRight').value) || MARGEM_PADRAO.right,
-      bottom: parseFloat(document.getElementById('mgBottom').value) || MARGEM_PADRAO.bottom,
-      left: parseFloat(document.getElementById('mgLeft').value) || MARGEM_PADRAO.left,
-    } : MARGEM_PADRAO;
-  }
-  // Prévia em escala real (A4) com o padrão em edição aplicado a uma minuta de exemplo.
-  // Deixa visível, para o cliente, como o documento final fica mesmo antes de existir
-  // qualquer processo real carregado no sistema.
-  function renderDocPreview(){
-    const cfg = estadoAtual();
-    const margens = margensAtuais();
-    const cabecalhoHtml = previewCabecalho(cfg, false);
-    const cabecalhoSangrado = `<div style="margin:-${margens.top}cm -${margens.right}cm 16px -${margens.left}cm;">${cabecalhoHtml}</div>`;
-    const secoesHtml = secoesExemploPreview().map((s, i) => `
-      <h5>${i+1}. ${s.t}</h5>
-      ${s.b.split('\n\n').map(p=>`<p>${p}</p>`).join('')}
-    `).join('');
-    document.getElementById('docPreviewPanel').innerHTML = `
-      <div class="preview-label">prévia em escala real do modelo de documento (folha A4, 21 cm), com conteúdo de exemplo</div>
-      <div class="page-preview-wrap">
-        <div class="page-preview" style="padding:${margens.top}cm ${margens.right}cm ${margens.bottom}cm ${margens.left}cm; font-family:'${cfg.fonte}', serif; font-size:${cfg.fonteTamanho}pt; line-height:${cfg.espacamento};">
-          ${marcaDaguaHtml(cfg)}
-          ${cabecalhoSangrado}
-          <div class="doc-court">Excelentíssimo senhor doutor juiz de direito</div>
-          ${secoesHtml}
-          ${rodapePreviewHtml(cfg)}
-        </div>
-      </div>
-      <div class="callout" style="margin-top:12px"><b>Sobre esta prévia.</b> O cabeçalho e as margens são exatamente os configurados ao lado. O texto das seções é de exemplo: as seções fixas já são as mesmas do documento final, só o resumo do caso e a seção "Regularidade dos descontos impugnados" mudam de acordo com a petição real de cada processo.</div>`;
-  }
-  function atualizarPreview(){
-    document.getElementById('headerPreviewWrap').innerHTML = previewCabecalho(estadoAtual());
-    renderDocPreview();
-  }
-  function alternarCampos(){
-    const modo = document.getElementById('headerMode').value;
-    document.getElementById('camposMontar').style.display = modo==='montar' ? 'block' : 'none';
-    document.getElementById('camposAnexar').style.display = modo==='anexar' ? 'block' : 'none';
-    atualizarPreview();
-  }
-  function alternarAba(nome){
-    document.querySelectorAll('.pad-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===nome));
-    document.getElementById('padPanelAparencia').style.display = nome==='aparencia' ? 'block' : 'none';
-    document.getElementById('padPanelConteudo').style.display = nome==='conteudo' ? 'block' : 'none';
-    document.getElementById('padPanelAvancado').style.display = nome==='avancado' ? 'block' : 'none';
-  }
-  document.querySelectorAll('.pad-tab').forEach(t=>{
-    t.addEventListener('click', ()=>alternarAba(t.dataset.tab));
-  });
-
-  document.getElementById('headerMode').addEventListener('change', alternarCampos);
-  document.getElementById('headerLogoPos').addEventListener('change', atualizarPreview);
-  document.getElementById('headerCor').addEventListener('input', atualizarPreview);
-  document.getElementById('headerPontinhos').addEventListener('change', atualizarPreview);
-  document.getElementById('clientMargensPersonalizadas').addEventListener('change', atualizarPreview);
-  ['mgTop','mgRight','mgBottom','mgLeft'].forEach(id=>{
-    document.getElementById(id).addEventListener('input', atualizarPreview);
-  });
-  document.getElementById('rodapeAtivo').addEventListener('change', atualizarPreview);
-  document.getElementById('rodapeTexto').addEventListener('input', atualizarPreview);
-  document.getElementById('marcaDaguaAtiva').addEventListener('change', atualizarPreview);
-  document.getElementById('marcaDaguaTexto').addEventListener('input', atualizarPreview);
-  document.getElementById('fonteSelect').addEventListener('change', atualizarPreview);
-  document.getElementById('fonteTamanho').addEventListener('change', atualizarPreview);
-  document.getElementById('espacamentoSelect').addEventListener('change', atualizarPreview);
-  document.getElementById('numeracaoSelect').addEventListener('change', atualizarPreview);
-
-  document.getElementById('clientLogoInput').addEventListener('change', e=>{
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      logoDataUrlTemp = ev.target.result;
-      document.getElementById('logoPreview').innerHTML = `<img src="${logoDataUrlTemp}">`;
-      atualizarPreview();
-    };
-    reader.readAsDataURL(file);
-  });
-  document.getElementById('bannerInput').addEventListener('change', e=>{
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      bannerDataUrlTemp = ev.target.result;
-      document.getElementById('bannerPreview').innerHTML = `<img src="${bannerDataUrlTemp}">`;
-      atualizarPreview();
-    };
-    reader.readAsDataURL(file);
-  });
-
-  alternarCampos();
-
-  document.getElementById('saveClientBtn').addEventListener('click', ()=>{
-    if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
-    const nome = document.getElementById('clientNome').value.trim();
-    if(!nome){ alert('Informe o nome do cliente.'); return; }
-    const editId = document.getElementById('clientEditId').value;
-    const dados = {
-      nome,
-      ...estadoAtual(),
-      margensPersonalizadas: document.getElementById('clientMargensPersonalizadas').checked,
-      margens: {
-        top: parseFloat(document.getElementById('mgTop').value) || MARGEM_PADRAO.top,
-        right: parseFloat(document.getElementById('mgRight').value) || MARGEM_PADRAO.right,
-        bottom: parseFloat(document.getElementById('mgBottom').value) || MARGEM_PADRAO.bottom,
-        left: parseFloat(document.getElementById('mgLeft').value) || MARGEM_PADRAO.left,
-      },
-    };
-    if(editId){
-      const cl = clientes.find(c=>c.id===parseInt(editId));
-      if(cl){
-        if(!dados.logoDataUrl) dados.logoDataUrl = cl.logoDataUrl;
-        if(!dados.headerBannerDataUrl) dados.headerBannerDataUrl = cl.headerBannerDataUrl;
-        Object.assign(cl, dados);
-      }
-    } else {
-      clientes.push({ id: clienteSeq++, ...dados });
-    }
-    renderPadroes();
-  });
-
-  body.querySelectorAll('[data-edit]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const cl = clientes.find(c=>c.id===parseInt(btn.dataset.edit));
-      if(!cl) return;
-      document.getElementById('clientFormTitle').textContent = 'Editar padrão de cliente';
-      document.getElementById('clientEditId').value = cl.id;
-      document.getElementById('clientNome').value = cl.nome;
-      document.getElementById('headerMode').value = cl.headerMode || 'nenhum';
-      document.getElementById('headerLogoPos').value = cl.headerLogoPos || 'left';
-      document.getElementById('headerCor').value = cl.headerCor || '#1a56db';
-      document.getElementById('headerPontinhos').checked = cl.headerPontinhos !== false;
-      document.getElementById('clientMargensPersonalizadas').checked = cl.margensPersonalizadas;
-      document.getElementById('mgTop').value = cl.margens.top;
-      document.getElementById('mgRight').value = cl.margens.right;
-      document.getElementById('mgBottom').value = cl.margens.bottom;
-      document.getElementById('mgLeft').value = cl.margens.left;
-      document.getElementById('rodapeAtivo').checked = !!cl.rodapeAtivo;
-      document.getElementById('rodapeTexto').value = cl.rodapeTexto || '';
-      document.getElementById('marcaDaguaAtiva').checked = !!cl.marcaDaguaAtiva;
-      document.getElementById('marcaDaguaTexto').value = cl.marcaDaguaTexto || '';
-      document.getElementById('fonteSelect').value = cl.fonte || FONTE_PADRAO.familia;
-      document.getElementById('fonteTamanho').value = cl.fonteTamanho || FONTE_PADRAO.tamanho;
-      document.getElementById('espacamentoSelect').value = cl.espacamento || FONTE_PADRAO.espacamento;
-      document.getElementById('numeracaoSelect').value = cl.numeracaoPagina || 'nenhuma';
-      logoDataUrlTemp = cl.logoDataUrl || null;
-      bannerDataUrlTemp = cl.headerBannerDataUrl || null;
-      document.getElementById('logoPreview').innerHTML = logoDataUrlTemp ? `<img src="${logoDataUrlTemp}">` : '<span>nenhuma logo selecionada</span>';
-      document.getElementById('bannerPreview').innerHTML = bannerDataUrlTemp ? `<img src="${bannerDataUrlTemp}">` : '<span>nenhuma imagem selecionada</span>';
-      alternarCampos();
-      alternarAba('aparencia');
-      window.scrollTo({top:0, behavior:'smooth'});
-    });
-  });
-  body.querySelectorAll('[data-del]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
-      clientes = clientes.filter(c=>c.id!==parseInt(btn.dataset.del));
-      renderPadroes();
-    });
-  });
-
+  document.getElementById('padroesBody').innerHTML = '<div id="modelosContestacaoWrap"></div>';
   renderModelosContestacao();
 }
 
@@ -3140,14 +2818,6 @@ function renderGeracao(id){
   const gerando = c.genStatus==='gerando';
   const genLabel = gerando ? '<span class="spin"></span> Gerando contestação' : (c.contestacao ? 'Gerar nova versão' : 'Gerar contestação');
 
-  // corresponde automaticamente ao cliente pelo nome do réu, uma única vez
-  if(c.clienteId === undefined){
-    const match = clientes.find(cl => f.reu && f.reu.toLowerCase().includes(cl.nome.toLowerCase().split(' ')[0]));
-    c.clienteId = match ? match.id : null;
-  }
-  const clienteOptions = `<option value="">Padrão do sistema (sem logo, margens padrão)</option>` +
-    clientes.map(cl => `<option value="${cl.id}" ${c.clienteId===cl.id?'selected':''}>${cl.nome}</option>`).join('');
-
   const numeroExibido = (f.numeroCNJ && !/não localizado/i.test(f.numeroCNJ)) ? f.numeroCNJ : c.name;
   const statusPillGen = c.contestacao ? '<span class="pill ok">minuta gerada</span>' : '<span class="pill neutral">novo</span>';
 
@@ -3225,11 +2895,6 @@ function renderGeracao(id){
             <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Estimativa por dias úteis (só desconta sábado e domingo, sem calendário de feriados forenses). Sempre conferir o prazo real no processo oficial.</div>
           </div>
           <div class="ev-card">
-            <span class="ev-type">padrão de documento (cliente)</span>
-            <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
-            <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
-          </div>
-          <div class="ev-card">
             <span class="ev-type">modelo de contestação enviado (opcional)</span>
             <select id="modeloContestacaoSelect" class="f-input" style="margin:8px 0 0;">
               <option value="">Nenhum (usar estrutura padrão do sistema, acima)</option>
@@ -3289,10 +2954,6 @@ function renderGeracao(id){
       renderGeracao(id);
     });
   }
-  document.getElementById('clienteSelect').addEventListener('change', e=>{
-    c.clienteId = e.target.value ? parseInt(e.target.value) : null;
-    salvarEstado();
-  });
   document.getElementById('modeloContestacaoSelect').addEventListener('change', e=>{
     c.modeloContestacaoId = e.target.value ? parseInt(e.target.value) : null;
     salvarEstado();
