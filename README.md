@@ -295,10 +295,14 @@ a lateral vira uma faixa horizontal no topo, com os mesmos elementos.
   verdade (matriz de controvérsias exigiria uma nova tarefa de IA estruturada, e
   evidências com print exigiriam extrair a página exata do PDF de origem);
   nunca simulamos esses passos como concluídos.
-- Seletor de causa raiz editável na tela de Geração: a IA sugere, mas o operador
-  pode corrigir manualmente, sempre restrito às causas raiz reais do produto
-  mapeado no banco de 286 teses (nunca texto livre, para não descasar do Banco
-  de teses por erro de digitação).
+- Painel "Tese aplicável" na tela de Geração: mostra o número de teses do banco
+  de 286 disponíveis para o produto do caso, o seletor de causa raiz editável
+  (a IA sugere, o operador corrige — sempre restrito às causas raiz reais do
+  produto mapeado, nunca texto livre, para não descasar do Banco de teses por
+  erro de digitação), o status de uso e as provas mínimas da tese casada de
+  verdade (mesma função usada na geração), e uma caixa editável com o texto
+  real da tese — o ajuste feito ali vale só para aquele processo (nunca altera
+  o banco de 286) e é o texto que entra na minuta.
 - Opção de excluir um processo da fila, tanto na lista quanto dentro da tela de
   Geração.
 - Fila, análises, clientes e Banco de teses ficam salvos num banco compartilhado
