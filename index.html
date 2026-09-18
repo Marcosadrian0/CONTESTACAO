@@ -236,7 +236,7 @@ tr:last-child td{border-bottom:none;}
 .page-preview p{margin-bottom:8px;}
 .page-preview .doc-court{text-align:center; font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; color:#6b6455; text-transform:uppercase; margin-bottom:20px;}
 
-.evidence-col{position:sticky; top:96px; display:flex; flex-direction:column; gap:10px;}
+.evidence-col{display:flex; flex-direction:column; gap:10px;}
 .evidence-head{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint);}
 .ev-card{background:var(--bg-raise); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow);}
 .ev-type{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint);}
@@ -2801,7 +2801,6 @@ function renderGeracao(id){
   });
   const f = c.fields;
   const sourceLabel = c.source==='ai' ? 'extraído por IA' : 'extraído localmente, por padrão de texto';
-  const pedidos = f.pedidos && f.pedidos.length ? f.pedidos.map(p=>`<li>${p}</li>`).join('') : '<li>não identificados automaticamente</li>';
 
   const gerando = c.genStatus==='gerando';
   const genLabel = gerando ? '<span class="spin"></span> Gerando contestação' : (c.contestacao ? 'Gerar nova versão' : 'Gerar contestação');
@@ -2854,17 +2853,7 @@ function renderGeracao(id){
     ${teseAplicavelHtml(c)}
     ${estruturaModularHtml(c)}
     ${pipelineAnaliseHtml(c)}
-    <div class="gen-shell">
-      <div class="doc-frame">
-        <div class="doc-court">Petição inicial, texto extraído do arquivo</div>
-        <h5>Resumo</h5>
-        <p>${f.resumo}</p>
-        <h5>Pedidos identificados</h5>
-        <ul style="padding-left:18px">${pedidos}</ul>
-        <h5>Texto original extraído</h5>
-        <div class="doc-raw">${(c.rawText||'').slice(0,4000).replace(/</g,'&lt;')}</div>
-      </div>
-      <div class="evidence-col">
+      <div class="evidence-col" style="max-width:440px;">
         <div class="evidence-head">Campos extraídos${c.source==='local' ? ' <span style="color:var(--amber); font-weight:600;">· extração local, conferir com atenção</span>' : ''}</div>
         <div class="ev-card"><span class="ev-type">número cnj</span><div class="ev-title">${f.numeroCNJ}</div>${campoAlertaHtml(f.numeroCNJ)}</div>
         <div class="ev-card"><span class="ev-type">autor</span><div class="ev-title">${f.autor}</div>${campoAlertaHtml(f.autor)}</div>
@@ -2900,7 +2889,6 @@ function renderGeracao(id){
         </div>
         <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="width:100%; justify-content:center; margin-top:4px;">${genLabel}</button>
       </div>
-    </div>
     ${c.contestacao ? renderContestacaoBlock(c) : ''}`;
   document.getElementById('backToFila').addEventListener('click', ()=>{ goView('fila'); renderFila(); });
   document.getElementById('excluirProcessoBtn').addEventListener('click', ()=>excluirProcesso(id));
