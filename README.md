@@ -247,16 +247,24 @@ a lateral vira uma faixa horizontal no topo, com os mesmos elementos.
 - Aba de Análises: agrega os resultados do checklist de todas as gerações da
   sessão, aponta o campo ou regra que falha com mais frequência, e cada linha
   reabre a minuta daquele processo com um clique.
-- Aba "Banco de teses": cadastro de teses por produto (tema), causa raiz, pedido
-  e modelo de texto; toda tese cadastrada para o produto de um processo entra
-  automaticamente como seção extra na minuta gerada para aquele produto.
-- Dentro da mesma aba, "Teses padrão do sistema": 286 teses reais (matriz causa
-  raiz x produto, `data/teses-sistema.json`), iguais para todas as empresas,
-  filtráveis por produto e causa raiz. É só leitura — o botão "usar como base"
-  pré-preenche o formulário de tese própria da empresa para revisão e salvamento
-  manual, porque a unidade de organização da planilha de origem (causa raiz) não
-  é a mesma do campo "Pedido" usado hoje para casar automaticamente com os pedidos
-  da petição (ver "Próximos passos" sobre a migração para as 15 seções do CPC).
+- Aba "Banco de teses": um único grid de cartões, no layout de referência do
+  cliente, juntando as 286 teses padrão do sistema (matriz causa raiz x produto,
+  `data/teses-sistema.json`, iguais para todas as empresas) com as teses próprias
+  desta empresa, cada cartão com produto, status, texto da tese e provas mínimas
+  quando existem. Um campo de texto filtra por causa raiz, produto ou status em
+  todo o grid de uma vez (sem precisar escolher um filtro antes de ver algo).
+  O botão "+ Nova tese" abre o formulário de cadastro (produto, causa raiz,
+  pedido e modelo de texto); toda tese própria cadastrada para o produto de um
+  processo entra automaticamente como seção extra na minuta gerada para aquele
+  produto. O ícone de lixeira em um cartão do banco de 286 não apaga do arquivo
+  compartilhado — só oculta aquela tese do banco desta empresa (`tesesSistemaOcultas`,
+  salvo por empresa) e a exclui do casamento por causa raiz usado na geração
+  (`tesesSistemaDoMerito`); em um cartão de tese própria, remove de verdade. O
+  botão "usar como base" em um cartão do banco de 286 pré-preenche o formulário
+  de tese própria para revisão e salvamento manual, porque a unidade de
+  organização da planilha de origem (causa raiz) não é a mesma do campo "Pedido"
+  usado hoje para casar automaticamente com os pedidos da petição (ver "Próximos
+  passos" sobre a migração para as 15 seções do CPC).
   As citações de jurisprudência já embutidas no texto dessas 286 teses (Súmula 479,
   Tema 1061, EAREsp 676.608, Súmula 385, Súmulas 382 e 530, REsp 1.061.530, todas
   do STJ) foram verificadas em fontes independentes em 17/09/2026: todas existem e

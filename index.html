@@ -322,6 +322,17 @@ summary::-webkit-details-marker{display:none;}
 .client-badge{font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:20px; background:var(--cyan-dim); color:var(--cyan);}
 .client-badge.off{background:var(--line); color:var(--ink-faint);}
 .client-actions{display:flex; gap:8px; margin-top:12px;}
+
+/* ---------- banco de teses: grid unificado (286 do sistema + próprias da empresa) ---------- */
+.tese-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+@media(max-width:1100px){ .tese-grid{grid-template-columns:repeat(2,1fr);} }
+@media(max-width:680px){ .tese-grid{grid-template-columns:1fr;} }
+.tese-card{position:relative; background:var(--bg-raise); border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow);}
+.tese-card h4{font-size:14px; font-weight:600; margin:0 26px 6px 0;}
+.tese-card .tese-produto{font-size:12.5px; color:var(--ink-dim); display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
+.tese-card .tese-body{font-size:12.5px; color:var(--ink-dim); line-height:1.5; margin-bottom:8px; max-height:96px; overflow:hidden;}
+.tese-card .tese-provas{font-size:11.5px; color:var(--ink-faint);}
+.tese-card .tese-del{position:absolute; top:14px; right:14px; background:none; border:none; color:var(--red); cursor:pointer; padding:2px; display:flex;}
 .mini-btn{
   font-family:var(--mono); font-size:10.5px; padding:5px 10px; border-radius:7px; border:1px solid var(--line-strong);
   background:transparent; color:var(--ink-dim); cursor:pointer;
@@ -601,9 +612,8 @@ html[data-theme="dark"] .auth-screen{
   <!-- ============ BANCO DE TESES ============ -->
   <section class="view" id="view-teses">
     <div class="view-head">
-      <div class="kicker">Biblioteca de teses por produto</div>
-      <h1>Cadastre teses para serem aplicadas na geração da contestação</h1>
-      <p>Cada tese fica associada a um produto (tema) e a um pedido específico da petição. Ao gerar uma contestação para aquele produto, as teses cadastradas aqui entram na minuta como seções adicionais, além do modelo fixo já validado.</p>
+      <h1>Banco de teses</h1>
+      <p>Defesa de banco em ações de consignado, linha Agibank</p>
     </div>
     <div id="tesesBody"></div>
   </section>
@@ -840,7 +850,7 @@ function logout(){
   modoSomenteLeitura = false;
   empresaAtivaAdmin = null;
   empresasCache = [];
-  cases = []; analyses = []; clientes = []; teses = [];
+  cases = []; analyses = []; clientes = []; teses = []; tesesSistemaOcultas = [];
   limparSessao();
   showLogin();
 }
@@ -1092,6 +1102,10 @@ let teseSeq = 1;
 // empresa, que continua exigindo revisão e salvamento manual antes de valer.
 let tesesSistema = null;
 let tesesSistemaFiltro = { produto: '', causaRaiz: '' };
+// Ids do banco de 286 que esta empresa escolheu ocultar do próprio "Banco de teses" (ex.:
+// não usa aquele produto). Nunca apaga do arquivo compartilhado data/teses-sistema.json —
+// só filtra a exibição e o casamento por mérito (tesesSistemaDoMerito) para esta empresa.
+let tesesSistemaOcultas = [];
 async function carregarTesesSistema(){
   if(tesesSistema !== null) return tesesSistema;
   try{
@@ -1129,7 +1143,7 @@ async function carregarEmpresas(){
 
 function salvarEstado(){
   if(modoSomenteLeitura) return; // "todas as empresas": nada para gravar, ver restaurarEstado
-  const dados = { cases, analyses, idSeq, clientes, clienteSeq, teses, teseSeq };
+  const dados = { cases, analyses, idSeq, clientes, clienteSeq, teses, teseSeq, tesesSistemaOcultas };
   const body = { action:'salvar', dados };
   if(currentUser && currentUser.papel==='admin' && empresaAtivaAdmin && empresaAtivaAdmin!=='todas'){
     body.empresaId = empresaAtivaAdmin;
@@ -1152,7 +1166,7 @@ async function restaurarEstado(){
 
     if(data.modo === 'todas'){
       modoSomenteLeitura = true;
-      cases = []; analyses = []; clientes = []; teses = [];
+      cases = []; analyses = []; clientes = []; teses = []; tesesSistemaOcultas = [];
       let maxIdSeq=1, maxClienteSeq=1, maxTeseSeq=1;
       (data.empresas||[]).forEach(e=>{
         const d = e.dados || {};
@@ -1173,6 +1187,7 @@ async function restaurarEstado(){
       analyses = Array.isArray(d.analyses) ? d.analyses : [];
       clientes = Array.isArray(d.clientes) ? d.clientes : [];
       teses = Array.isArray(d.teses) ? d.teses : [];
+      tesesSistemaOcultas = Array.isArray(d.tesesSistemaOcultas) ? d.tesesSistemaOcultas : [];
       idSeq = typeof d.idSeq === 'number' ? d.idSeq : 1;
       clienteSeq = typeof d.clienteSeq === 'number' ? d.clienteSeq : 1;
       teseSeq = typeof d.teseSeq === 'number' ? d.teseSeq : 1;
@@ -1321,7 +1336,7 @@ function tesesSistemaDoMerito(tema, causaRaiz){
   if(!tesesSistema || !causaRaiz || /não localizado/i.test(causaRaiz)) return [];
   const produtoSistema = TEMA_PARA_PRODUTO_SISTEMA[tema];
   if(!produtoSistema) return [];
-  return tesesSistema.filter(t => t.produto === produtoSistema && t.causaRaiz === causaRaiz);
+  return tesesSistema.filter(t => t.produto === produtoSistema && t.causaRaiz === causaRaiz && !tesesSistemaOcultas.includes(t.id));
 }
 
 // Seletor de causa raiz na tela de Geração: deixa o operador corrigir a sugestão da IA (ou
@@ -1522,39 +1537,31 @@ async function tryAiRegularidade(f, rawText, textoModelo){
 /* ---------------- banco de teses ---------------- */
 // Teses cadastradas pelo próprio usuário, por produto (tema). Entram como seções extras na
 // minuta (ver montarSecoes) sempre que o produto do cadastro bate com o tema do processo.
+// Tela "Banco de teses": um único grid de cartões juntando as 286 teses de referência
+// (tesesSistema, mesmo arquivo para todas as empresas) com as teses próprias desta empresa
+// (teses, cadastradas por aqui). Um cartão do banco de 286 "removido" nunca apaga do arquivo
+// compartilhado — só entra em tesesSistemaOcultas (por empresa) e some da exibição e do
+// casamento por mérito (ver tesesSistemaDoMerito). Uma tese própria removida é apagada de
+// verdade (é dado desta empresa). Ambas continuam entrando na geração real da minuta: as
+// próprias via tesesDoTema()/montarSecoes(), as do sistema via tesesSistemaDoMerito().
+let teseFiltroTexto = '';
+
 function renderTeses(){
   salvarEstado();
   const body = document.getElementById('tesesBody');
   const produtoOptions = Object.keys(TEMA_PRODUTOS).map(t=>`<option value="${t}">${t}</option>`).join('')
     + `<option value="__outro__">Outro produto (especificar)</option>`;
 
-  const listaHtml = teses.length === 0
-    ? `<div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M13 4v5h5"/></svg>
-        <b>Nenhuma tese cadastrada</b>
-        <span>Use o formulário ao lado para cadastrar a primeira tese.</span>
-      </div>`
-    : `<div class="client-list">${teses.map(t => `
-        <div class="client-card">
-          <div class="client-card-head">
-            <div>
-              <div class="client-name">${t.produto}${t._empresaNome ? ` <span style="font-weight:400; color:var(--ink-faint); font-size:11px;">· ${t._empresaNome}</span>` : ''}</div>
-              <div class="client-badges">
-                <span class="client-badge">${t.pedido}</span>
-                ${t.causaRaiz ? `<span class="client-badge off">${t.causaRaiz}</span>` : ''}
-              </div>
-            </div>
-          </div>
-          <div style="font-size:12.5px; color:var(--ink-dim); margin:8px 0; max-height:80px; overflow:hidden;">${t.modeloTese.slice(0,220)}${t.modeloTese.length>220?'…':''}</div>
-          <div class="client-actions">
-            <button class="mini-btn" data-edit="${t.id}">Editar</button>
-            <button class="mini-btn danger" data-del="${t.id}">Remover</button>
-          </div>
-        </div>`).join('')}</div>`;
-
-  body.innerHTML = `<div class="client-shell">
-    <div class="client-form">
-      <h3 id="teseFormTitle">Nova tese</h3>
+  body.innerHTML = `
+    <div class="row between" style="margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+      <input class="f-input" id="teseFiltro" style="margin:0; max-width:360px; flex:1;" placeholder="Filtrar por causa raiz, produto ou status..." value="${teseFiltroTexto.replace(/"/g,'&quot;')}">
+      <div class="row" style="gap:14px;">
+        <span class="count-badge" id="teseCount">0</span>
+        <button class="btn-generate" id="novaTeseBtn" style="width:auto; padding:9px 16px; font-size:12.5px;">+ Nova tese</button>
+      </div>
+    </div>
+    <div class="card" id="teseFormCard" style="display:none;">
+      <h3 id="teseFormTitle" style="font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); margin-bottom:14px;">Nova tese</h3>
       <input type="hidden" id="teseEditId" value="">
       <label class="f-label">Produto</label>
       <select class="f-input" id="teseProduto">${produtoOptions}</select>
@@ -1567,26 +1574,42 @@ function renderTeses(){
       <input class="f-input" id="tesePedido" placeholder="ex.: repetição de indébito em dobro">
 
       <label class="f-label">Modelo de tese (texto a ser aplicado na minuta)</label>
-      <textarea class="f-input" id="teseModelo" rows="8" placeholder="Texto completo da tese, no mesmo estilo das demais seções da contestação."></textarea>
+      <textarea class="f-input" id="teseModelo" rows="6" placeholder="Texto completo da tese, no mesmo estilo das demais seções da contestação."></textarea>
 
-      <button class="btn-generate" id="saveTeseBtn" style="width:100%; justify-content:center;">Salvar tese</button>
+      <div class="row" style="gap:8px; margin-top:4px;">
+        <button class="btn-generate" id="saveTeseBtn" style="width:auto; padding:9px 18px;">Salvar tese</button>
+        <button class="mini-btn" id="cancelTeseBtn">Cancelar</button>
+      </div>
     </div>
-    <div>${listaHtml}</div>
-  </div>
-  <div class="view-head" style="margin-top:40px;">
-    <div class="kicker">Referência jurídica, igual para todas as empresas</div>
-    <h1 style="font-size:20px">Teses padrão do sistema (286)</h1>
-    <p>Matriz causa raiz por produto, com tese defensiva, provas mínimas recomendadas e pedidos subsidiários. É só leitura: use "usar como base" para pré-preencher o formulário acima com uma tese própria, revise o texto e salve.</p>
-  </div>
-  <div id="tesesSistemaWrap"><div class="empty-state"><b>Carregando teses padrão…</b></div></div>`;
-
-  carregarTesesSistema().then(()=>renderTesesSistema());
+    <div class="tese-grid" id="teseGrid"></div>`;
 
   function alternarProdutoOutro(){
     const outro = document.getElementById('teseProduto').value === '__outro__';
     document.getElementById('teseProdutoOutro').style.display = outro ? 'block' : 'none';
   }
   document.getElementById('teseProduto').addEventListener('change', alternarProdutoOutro);
+
+  function abrirFormulario(){
+    document.getElementById('teseFormCard').style.display = 'block';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  function fecharFormulario(){
+    document.getElementById('teseFormCard').style.display = 'none';
+    document.getElementById('teseFormTitle').textContent = 'Nova tese';
+    document.getElementById('teseEditId').value = '';
+    document.getElementById('teseProduto').value = Object.keys(TEMA_PRODUTOS)[0];
+    document.getElementById('teseProdutoOutro').value = '';
+    document.getElementById('teseCausaRaiz').value = '';
+    document.getElementById('tesePedido').value = '';
+    document.getElementById('teseModelo').value = '';
+    alternarProdutoOutro();
+  }
+  document.getElementById('novaTeseBtn').addEventListener('click', ()=>{
+    if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
+    fecharFormulario();
+    abrirFormulario();
+  });
+  document.getElementById('cancelTeseBtn').addEventListener('click', fecharFormulario);
 
   document.getElementById('saveTeseBtn').addEventListener('click', ()=>{
     if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
@@ -1612,10 +1635,80 @@ function renderTeses(){
     } else {
       teses.push({ id: teseSeq++, ...dados });
     }
-    renderTeses();
+    fecharFormulario();
+    renderTeseGrid();
+    salvarEstado();
   });
 
-  body.querySelectorAll('[data-edit]').forEach(btn=>{
+  document.getElementById('teseFiltro').addEventListener('input', e=>{
+    teseFiltroTexto = e.target.value;
+    renderTeseGrid();
+  });
+
+  renderTeseGrid();
+  carregarTesesSistema().then(()=>renderTeseGrid());
+
+  // Exposto para os botões "Editar" dos cartões (delegados em renderTeseGrid, que é
+  // re-executado a cada filtro/ação e não pode redeclarar estas funções internas de novo).
+  window.__teseAbrirFormulario = abrirFormulario;
+}
+
+function renderTeseGrid(){
+  const grid = document.getElementById('teseGrid');
+  if(!grid) return; // usuário já saiu da aba Banco de teses antes do fetch das 286 terminar
+  const q = teseFiltroTexto.trim().toLowerCase();
+
+  const cartoesProprios = teses.map(t => ({
+    tipo: 'propria', id: t.id, titulo: t.causaRaiz || t.pedido, produto: t.produto,
+    status: 'tese própria', statusClasse: 'ok', corpo: t.modeloTese,
+    provas: '', badgeExtra: t.pedido, buscaTexto: [t.produto, t.causaRaiz, t.pedido, 'tese própria'].join(' '),
+  }));
+  const cartoesSistema = (tesesSistema || [])
+    .filter(t => !tesesSistemaOcultas.includes(t.id))
+    .map(t => ({
+      tipo: 'sistema', id: t.id, titulo: t.causaRaiz, produto: t.produto,
+      status: t.statusUso, statusClasse: /obrigat[oó]ria/i.test(t.statusUso||'') ? 'warn' : 'info', corpo: t.teseDefensiva,
+      provas: t.provasMinimas || '', badgeExtra: '', buscaTexto: [t.produto, t.causaRaiz, t.statusUso].join(' '),
+    }));
+  const todas = [...cartoesProprios, ...cartoesSistema];
+  const filtradas = q ? todas.filter(c => c.buscaTexto.toLowerCase().includes(q)) : todas;
+
+  document.getElementById('teseCount').textContent = todas.length;
+
+  grid.innerHTML = filtradas.length === 0
+    ? `<div class="empty-state" style="grid-column:1/-1;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M13 4v5h5"/></svg>
+        <b>Nenhuma tese encontrada</b>
+        <span>${todas.length===0 ? 'Cadastre a primeira com "+ Nova tese", ou aguarde o carregamento das 286 teses padrão.' : 'Ajuste o filtro.'}</span>
+      </div>`
+    : filtradas.map(c => `
+      <div class="tese-card">
+        <button type="button" class="tese-del" data-tipo="${c.tipo}" data-id="${c.id}" title="${c.tipo==='sistema' ? 'Ocultar do banco desta empresa' : 'Remover'}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>
+        </button>
+        <h4>${c.titulo}</h4>
+        <div class="tese-produto">Produto: <b>${c.produto}</b> <span class="pill ${c.statusClasse}">${c.status}</span></div>
+        <div class="tese-body">${(c.corpo||'').slice(0,220)}${(c.corpo||'').length>220?'…':''}</div>
+        ${c.provas ? `<div class="tese-provas"><b>Provas:</b> ${c.provas}</div>` : ''}
+        ${c.tipo==='propria' ? `<div class="client-actions"><button class="mini-btn" data-edit="${c.id}">Editar</button></div>` : `<div class="client-actions"><button class="mini-btn" data-usar="${c.id}">Usar como base</button></div>`}
+      </div>`).join('');
+
+  grid.querySelectorAll('button.tese-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
+      const id = parseInt(btn.dataset.id);
+      if(btn.dataset.tipo==='sistema'){
+        if(!confirm('Ocultar esta tese do banco de teses desta empresa? Ela some da tela e deixa de ser usada na geração, mas continua existindo no banco de 286 compartilhado (não afeta outras empresas).')) return;
+        tesesSistemaOcultas.push(id);
+      } else {
+        if(!confirm('Remover esta tese? Ela deixará de ser aplicada em novas gerações.')) return;
+        teses = teses.filter(t=>t.id!==id);
+      }
+      salvarEstado();
+      renderTeseGrid();
+    });
+  });
+  grid.querySelectorAll('button[data-edit]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const t = teses.find(x=>x.id===parseInt(btn.dataset.edit));
       if(!t) return;
@@ -1624,87 +1717,16 @@ function renderTeses(){
       const temaConhecido = Object.keys(TEMA_PRODUTOS).includes(t.produto);
       document.getElementById('teseProduto').value = temaConhecido ? t.produto : '__outro__';
       document.getElementById('teseProdutoOutro').value = temaConhecido ? '' : t.produto;
+      document.getElementById('teseProdutoOutro').style.display = temaConhecido ? 'none' : 'block';
       document.getElementById('teseCausaRaiz').value = t.causaRaiz || '';
       document.getElementById('tesePedido').value = t.pedido;
       document.getElementById('teseModelo').value = t.modeloTese;
-      alternarProdutoOutro();
-      window.scrollTo({top:0, behavior:'smooth'});
+      if(window.__teseAbrirFormulario) window.__teseAbrirFormulario();
     });
   });
-  body.querySelectorAll('[data-del]').forEach(btn=>{
+  grid.querySelectorAll('button[data-usar]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
-      if(!confirm('Remover esta tese? Ela deixará de ser aplicada em novas gerações.')) return;
-      teses = teses.filter(t=>t.id!==parseInt(btn.dataset.del));
-      renderTeses();
-    });
-  });
-}
-
-function renderTesesSistema(){
-  const wrap = document.getElementById('tesesSistemaWrap');
-  if(!wrap) return; // usuário já saiu da aba Banco de teses antes do fetch terminar
-  const todas = tesesSistema || [];
-  const produtos = [...new Set(todas.map(t=>t.produto))].sort();
-  const causas = [...new Set(todas.map(t=>t.causaRaiz))].sort();
-
-  const filtradas = todas.filter(t =>
-    (!tesesSistemaFiltro.produto || t.produto===tesesSistemaFiltro.produto) &&
-    (!tesesSistemaFiltro.causaRaiz || t.causaRaiz===tesesSistemaFiltro.causaRaiz)
-  );
-  const semFiltro = !tesesSistemaFiltro.produto && !tesesSistemaFiltro.causaRaiz;
-  const mostrar = semFiltro ? [] : filtradas.slice(0, 60);
-
-  const statusBadge = s => `<span class="client-badge ${s==='Classificação obrigatória' ? '' : 'off'}">${s}</span>`;
-
-  const listaHtml = semFiltro
-    ? `<div class="callout"><b>Escolha um produto ou uma causa raiz</b> para ver as teses (são 286, mostrar todas de uma vez ficaria difícil de navegar).</div>`
-    : mostrar.length === 0
-      ? `<div class="empty-state"><b>Nenhuma tese encontrada</b><span>Ajuste os filtros.</span></div>`
-      : `<div class="client-list">${mostrar.map(t=>`
-          <div class="client-card">
-            <div class="client-card-head">
-              <div>
-                <div class="client-name">${t.produto}</div>
-                <div class="client-badges">
-                  <span class="client-badge">${t.causaRaiz}</span>
-                  ${statusBadge(t.statusUso)}
-                </div>
-              </div>
-            </div>
-            <div style="font-size:12.5px; color:var(--ink-dim); margin:8px 0; max-height:110px; overflow:hidden;">${t.teseDefensiva}</div>
-            ${t.provasMinimas ? `<div style="font-size:11.5px; color:var(--ink-faint); margin-bottom:4px;"><b>Provas mínimas:</b> ${t.provasMinimas}</div>` : ''}
-            ${t.pedidosSubsidiarios ? `<div style="font-size:11.5px; color:var(--ink-faint);"><b>Pedidos subsidiários:</b> ${t.pedidosSubsidiarios}</div>` : ''}
-            <div class="client-actions">
-              <button class="mini-btn" data-usar="${t.id}">Usar como base</button>
-            </div>
-          </div>`).join('')}</div>
-        ${filtradas.length > mostrar.length ? `<div class="ev-body" style="margin-top:10px;">Mostrando ${mostrar.length} de ${filtradas.length}. Refine o filtro para ver as demais.</div>` : ''}`;
-
-  wrap.innerHTML = `
-    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
-      <select class="f-input" id="tsFiltroProduto" style="margin-bottom:0; width:auto;">
-        <option value="">Todos os produtos (${produtos.length})</option>
-        ${produtos.map(p=>`<option value="${p}" ${tesesSistemaFiltro.produto===p?'selected':''}>${p}</option>`).join('')}
-      </select>
-      <select class="f-input" id="tsFiltroCausa" style="margin-bottom:0; width:auto;">
-        <option value="">Todas as causas raiz (${causas.length})</option>
-        ${causas.map(c=>`<option value="${c}" ${tesesSistemaFiltro.causaRaiz===c?'selected':''}>${c}</option>`).join('')}
-      </select>
-    </div>
-    ${listaHtml}`;
-
-  document.getElementById('tsFiltroProduto').addEventListener('change', e=>{
-    tesesSistemaFiltro.produto = e.target.value;
-    renderTesesSistema();
-  });
-  document.getElementById('tsFiltroCausa').addEventListener('change', e=>{
-    tesesSistemaFiltro.causaRaiz = e.target.value;
-    renderTesesSistema();
-  });
-  wrap.querySelectorAll('[data-usar]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const t = todas.find(x=>x.id===parseInt(btn.dataset.usar));
+      const t = (tesesSistema||[]).find(x=>x.id===parseInt(btn.dataset.usar));
       if(t) usarTeseSistemaComoBase(t);
     });
   });
@@ -1716,6 +1738,7 @@ function renderTesesSistema(){
 // origem (lá a unidade é causa raiz, aqui é pedido); a pessoa precisa decidir esse
 // campo antes de salvar.
 function usarTeseSistemaComoBase(t){
+  if(window.__teseAbrirFormulario) window.__teseAbrirFormulario();
   document.getElementById('teseFormTitle').textContent = 'Nova tese (a partir do padrão do sistema)';
   document.getElementById('teseEditId').value = '';
   const temaConhecido = Object.keys(TEMA_PRODUTOS).includes(t.produto);
@@ -1728,7 +1751,6 @@ function usarTeseSistemaComoBase(t){
   if(t.provasMinimas) partes.push(`Provas mínimas recomendadas: ${t.provasMinimas}`);
   if(t.pedidosSubsidiarios) partes.push(`Pedidos subsidiários: ${t.pedidosSubsidiarios}`);
   document.getElementById('teseModelo').value = partes.join('\n\n');
-  window.scrollTo({top:0, behavior:'smooth'});
   document.getElementById('tesePedido').focus();
 }
 
