@@ -303,6 +303,28 @@ a lateral vira uma faixa horizontal no topo, com os mesmos elementos.
   verdade (mesma função usada na geração), e uma caixa editável com o texto
   real da tese — o ajuste feito ali vale só para aquele processo (nunca altera
   o banco de 286) e é o texto que entra na minuta.
+- Tela de Geração reorganizada em duas colunas: uma lista "Processos" à esquerda
+  (mesmo filtro de visibilidade da Fila) permite trocar de caso sem voltar para a
+  Fila, e o cabeçalho do caso mostra número do processo, produto e status
+  ("novo" / "minuta gerada") calculados do estado real do processo, nunca fixos.
+- Tabela "Documentos do processo" ganhou checkbox por linha e uma barra de
+  classificação em massa: marque vários documentos anexados e aplique a mesma
+  classificação (parte) a todos de uma vez, em vez de um por um.
+- Botão "Ver Prompt Mestre" no painel "Pipeline de análise": mostra o texto real
+  do prompt enviado ao modelo na extração de dados (cópia fiel do que está em
+  `api/anthropic.js`, task `extract`), para auditoria de que a IA não recebe
+  nem produz nada fora do que aparece na tela.
+- Checklist de qualidade (prontidão para gerar): 10 itens verificados a partir
+  do estado real do processo (petição anexada, documentos do autor/da ré
+  anexados e classificados, produto e causa raiz identificados, extração por
+  IA, jurisprudência mapeada, tutela avaliada, minuta gerada), com barra de
+  progresso — aparece antes do botão "Gerar contestação", nunca com valores
+  simulados.
+- Botões "Baixar (.txt)" e "Prévia / Imprimir" ficam disponíveis mesmo antes de
+  clicar em "Gerar contestação": os dois recalculam `montarSecoes()` na hora,
+  para conferência rápida do melhor esforço atual. Nenhum dos dois é o arquivo
+  protocolável — esse continua sendo sempre o `.doc` gerado por "Gerar
+  contestação".
 - Opção de excluir um processo da fila, tanto na lista quanto dentro da tela de
   Geração.
 - Fila, análises, clientes e Banco de teses ficam salvos num banco compartilhado
