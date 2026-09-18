@@ -596,6 +596,7 @@ test.describe('geração de contestação', () => {
   test('tese cadastrada no Banco de teses entra como seção extra na minuta do mesmo produto', async ({ page }) => {
     await loginComoAdminPadrao(page);
     await page.click('[data-view="teses"]');
+    await page.click('#novaTeseBtn');
     await page.selectOption('#teseProduto', 'Empréstimo consignado');
     await page.fill('#tesePedido', 'pedido de teste automatizado');
     await page.fill('#teseModelo', 'Texto da tese cadastrada para teste automatizado.');
@@ -610,22 +611,31 @@ test.describe('geração de contestação', () => {
     await expect(page.locator('.page-preview')).toContainText('Tese cadastrada: pedido de teste automatizado');
   });
 
-  test('teses padrão do sistema: filtra por produto e "usar como base" pré-preenche o formulário', async ({ page }) => {
+  test('banco de teses: as 286 teses padrão aparecem no grid e "usar como base" pré-preenche o formulário', async ({ page }) => {
     await loginComoAdminPadrao(page);
     await page.click('[data-view="teses"]');
-    await expect(page.locator('#tesesSistemaWrap')).toContainText('Escolha um produto ou uma causa raiz');
+    await expect(page.locator('#teseCount')).toHaveText('286', { timeout: 10000 });
 
-    await page.selectOption('#tsFiltroProduto', 'Cartão Consignado');
-    await expect(page.locator('#tsFiltroCausa')).toBeVisible();
-    const primeiraCard = page.locator('#tesesSistemaWrap .client-card').first();
+    await page.fill('#teseFiltro', 'Cartão Consignado');
+    const primeiraCard = page.locator('#teseGrid .tese-card').first();
     await expect(primeiraCard).toBeVisible();
 
     await primeiraCard.locator('[data-usar]').click();
+    await expect(page.locator('#teseFormCard')).toBeVisible();
     await expect(page.locator('#teseFormTitle')).toHaveText('Nova tese (a partir do padrão do sistema)');
     await expect(page.locator('#teseProduto')).toHaveValue('__outro__');
     await expect(page.locator('#teseProdutoOutro')).toHaveValue('Cartão Consignado');
     const modelo = await page.locator('#teseModelo').inputValue();
     expect(modelo.length).toBeGreaterThan(20);
+  });
+
+  test('banco de teses: ocultar uma tese do sistema some da tela desta empresa sem apagar o banco compartilhado', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.click('[data-view="teses"]');
+    await expect(page.locator('#teseCount')).toHaveText('286', { timeout: 10000 });
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#teseGrid .tese-card').first().locator('[data-tipo="sistema"]').click();
+    await expect(page.locator('#teseCount')).toHaveText('285');
   });
 
   test('baixar tradução de referência gera o arquivo e mantém o aviso de que não vale para protocolo', async ({ page }) => {
