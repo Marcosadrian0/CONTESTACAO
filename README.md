@@ -270,8 +270,35 @@ a lateral vira uma faixa horizontal no topo, com os mesmos elementos.
   identificado na petição (via IA), mostra se uma tese do Banco de teses foi
   aplicada ou se seguiu o modelo padrão do tema.
 - Upload de documentos de apoio (contratos, comprovantes, telas de sistema) além
-  da petição inicial, por processo; ficam disponíveis para reabrir enquanto a
-  aba do navegador não é fechada (ver limitação abaixo).
+  da petição inicial, por processo, com leitura real de texto (mesmos leitores
+  da petição inicial) e classificação por parte (Documento do autor / da ré /
+  Modelo de contestação / Complementar / A classificar) na tabela "Documentos
+  do processo". Documentos classificados como "Documento do autor" entram na
+  extração quando o operador clica em "Extrair dados da inicial e documentos",
+  útil para refazer a extração depois de anexar mais material; ficam
+  disponíveis para reabrir enquanto a aba do navegador não é fechada (ver
+  limitação abaixo).
+- Tabela "Estrutura modular da contestação": mostra as 15 seções do CPC e, para
+  cada uma, se está de fato presente na minuta deste caso — calculado rodando
+  `montarSecoes()` de verdade a cada mudança de variação do modelo ou do campo
+  Reconvenção, nunca uma simulação. Seções 1-3 e 14 (endereçamento, identificação
+  do processo, qualificação do réu, fechamento/assinatura) aparecem como "sempre
+  (preâmbulo)" porque vivem no cabeçalho fixo do documento, não na lista de
+  seções (ver "Limitação atual" e o comentário em `montarSecoes()`); a seção 8
+  (prejudiciais de mérito) aparece como "não implementado", nunca fabricada.
+- Painel "Pipeline de análise": 10 passos, cada um com o status real deste caso
+  (classificação de documentos, análise da petição, inventário de pedidos,
+  preliminares, defesa por pedido, jurisprudência, aplicação do modelo, revisão
+  final). Os passos "Matriz de controvérsias" e "Evidências e prints" aparecem
+  como "não implementado nesta versão" — são os dois itens do roteiro do
+  documento de referência do cliente que esta ferramenta ainda não constrói de
+  verdade (matriz de controvérsias exigiria uma nova tarefa de IA estruturada, e
+  evidências com print exigiriam extrair a página exata do PDF de origem);
+  nunca simulamos esses passos como concluídos.
+- Seletor de causa raiz editável na tela de Geração: a IA sugere, mas o operador
+  pode corrigir manualmente, sempre restrito às causas raiz reais do produto
+  mapeado no banco de 286 teses (nunca texto livre, para não descasar do Banco
+  de teses por erro de digitação).
 - Opção de excluir um processo da fila, tanto na lista quanto dentro da tela de
   Geração.
 - Fila, análises, clientes e Banco de teses ficam salvos num banco compartilhado
