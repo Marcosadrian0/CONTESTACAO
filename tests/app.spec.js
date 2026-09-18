@@ -666,6 +666,59 @@ test.describe('geração de contestação', () => {
   });
 });
 
+test.describe('padrões: modelos de contestação', () => {
+  test('criar modelo em branco e enviar um documento real são registrados no grid, e o modelo enviado aparece na Geração só para revisão', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.click('[data-view="padroes"]');
+    await expect(page.locator('#modelosContestacaoWrap')).toContainText('Nenhum modelo salvo');
+
+    page.once('dialog', dialog => dialog.accept('Modelo padrão Agibank'));
+    await page.click('#novoModeloBtn');
+    await expect(page.locator('#modelosContestacaoWrap')).toContainText('Modelo padrão Agibank');
+
+    await page.route('**/api/anthropic', async route => {
+      const body = route.request().postDataJSON();
+      if (body.task === 'modelo-estrutura') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          text: JSON.stringify({
+            secoes: [{ titulo: 'DOS FATOS', corpo: 'A parte autora {{autor}} alega...' }],
+            camposDinamicos: ['autor', 'reu'],
+          }),
+        }) });
+      } else {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'not mocked' }) });
+      }
+    });
+    await page.evaluate(() => {
+      window.mammoth = { extractRawText: async () => ({ value: 'DOS FATOS\nA parte autora João da Silva alega...' }) };
+    });
+
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#enviarModeloBtn')]);
+    await fc.setFiles({ name: 'modelo.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from('conteudo') });
+    await expect(page.locator('#modelosContestacaoWrap')).toContainText('estrutura detectada por IA');
+    await expect(page.locator('#modelosContestacaoWrap')).toContainText('{{autor}}');
+
+    const [fc2] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-view="fila"]').then(()=>page.click('#dropzone'))]);
+    await fc2.setFiles(PETICAO_TESTE);
+    await page.click('.q-row[data-id]');
+    await page.selectOption('#modeloContestacaoSelect', { label: 'modelo.docx' });
+    await expect(page.locator('#geracaoBody')).toContainText('a aplicação automática deste modelo na geração ainda não existe');
+  });
+
+  test('IA indisponível ao enviar um modelo salva o texto original com aviso, nunca uma estrutura inventada', async ({ page }) => {
+    await loginComoAdminPadrao(page);
+    await page.click('[data-view="padroes"]');
+    await page.route('**/api/anthropic', route => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'indisponível' }) }));
+    await page.evaluate(() => {
+      window.mammoth = { extractRawText: async () => ({ value: 'Texto original do documento enviado.' }) };
+    });
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#enviarModeloBtn')]);
+    await fc.setFiles({ name: 'modelo-sem-ia.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from('conteudo') });
+    await expect(page.locator('#modelosContestacaoWrap')).toContainText('IA indisponível');
+    await expect(page.locator('#modelosContestacaoWrap')).not.toContainText('estrutura detectada por IA');
+  });
+});
+
 test.describe('padrões por cliente', () => {
   test('abas Aparência/Conteúdo/Avançado alternam os campos do formulário', async ({ page }) => {
     await loginComoAdminPadrao(page);

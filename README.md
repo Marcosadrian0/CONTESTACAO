@@ -348,6 +348,23 @@ a lateral vira uma faixa horizontal no topo, com os mesmos elementos.
 - Padrões de documento por cliente: cabeçalho "montado" no sistema (tarja
   colorida, pontinhos decorativos, logo) ou "anexado" como imagem pronta, mais
   margens personalizadas por cliente, aplicados de verdade no `.doc` gerado.
+- Aba Padrões > "Modelos de contestação": biblioteca de documentos-modelo desta
+  empresa, no layout de referência do cliente. "+ Novo modelo" cria um modelo em
+  branco (nome escolhido pelo operador); "Enviar (PDF / DOCX)" lê o texto real
+  do arquivo (mesmos leitores da petição inicial, `extractPdfText`/
+  `extractDocxText`) e manda para uma nova task de IA no backend
+  (`api/anthropic.js`, task `modelo-estrutura`) identificar as seções do
+  documento e converter os trechos variáveis (nome das partes, número do
+  processo, valor da causa etc.) em campos dinâmicos `{{assim}}`, preservando o
+  texto jurídico fixo exatamente como está no original — nunca resumido ou
+  reescrito. Sem IA disponível, o modelo fica salvo com o texto original e um
+  aviso, nunca com uma estrutura inventada. Cada modelo pronto pode ser
+  selecionado na tela de Geração ("modelo de contestação enviado", em
+  Configurações da minuta); nesta versão essa escolha é só para revisão — a
+  minuta continua sendo gerada pela estrutura padrão do sistema (15 seções do
+  CPC) descrita acima, a aplicação automática do modelo enviado na geração
+  ainda não existe, e a tela avisa isso explicitamente quando um modelo está
+  selecionado.
 - Pré-visualização em escala real (folha A4, 21 cm) da minuta com o cabeçalho e a
   margem do cliente selecionado, antes do download.
 - Login obrigatório antes de usar o sistema, com troca de senha forçada no
