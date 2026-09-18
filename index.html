@@ -1313,6 +1313,36 @@ function causaRaizSelectHtml(f){
   return `<select id="causaRaizSelect" class="f-input" style="margin:8px 0 0;">${opcoes.join('')}</select>`;
 }
 
+// Painel "Tese aplicável": mostra de verdade a tese do banco de 286 que casa com o produto e
+// a causa raiz deste caso (mesma função tesesSistemaDoMerito usada em montarSecoes(), não uma
+// cópia) e deixa o operador ajustar o texto para os fatos específicos do caso antes de gerar —
+// a edição fica só neste processo (c.teseTextoOverride), nunca altera o banco de 286 em si.
+function teseAplicavelHtml(c){
+  const f = c.fields;
+  const produtoSistema = TEMA_PARA_PRODUTO_SISTEMA[f.tema];
+  const causasDoProduto = (tesesSistema && produtoSistema)
+    ? [...new Set(tesesSistema.filter(t => t.produto === produtoSistema).map(t => t.causaRaiz))].sort()
+    : [];
+  const match = tesesSistemaDoMerito(f.tema, f.causaRaiz)[0];
+  const statusHtml = match
+    ? `<div class="row" style="gap:10px; align-items:flex-start; margin:10px 0; font-size:12px; color:var(--ink-dim); flex-wrap:wrap;">
+        <span class="pill info">${match.statusUso}</span>
+        <span><b>Provas mínimas:</b> ${match.provasMinimas || '—'}</span>
+      </div>`
+    : `<div class="ev-body" style="margin:10px 0 0; color:var(--ink-faint);">Nenhuma tese do banco de 286 corresponde a este produto e causa raiz ainda — escolha uma causa raiz acima, quando houver correspondência para "${produtoSistema || f.tema}".</div>`;
+  const minutaTexto = match ? (c.teseTextoOverride || match.teseDefensiva) : '';
+  return `<div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Tese aplicável</div>
+    <span class="ev-type">causa raiz${causasDoProduto.length ? ` (${causasDoProduto.length} teses para ${produtoSistema})` : ''}</span>
+    ${causaRaizSelectHtml(f)}
+    ${statusHtml}
+    ${match ? `
+    <span class="ev-type">minuta da tese (editável)</span>
+    <textarea class="f-input" id="teseTextoInput" rows="5" style="margin-top:8px; font-family:var(--mono); font-size:12px;">${minutaTexto}</textarea>
+    <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Texto real da tese do banco de 286, usado na seção "Mérito: Tese padrão do sistema" da minuta. Ajuste aqui aos fatos deste caso antes de gerar — a edição vale só para este processo, o banco de teses do sistema não muda.</div>` : ''}
+  </div>`;
+}
+
 // Monta a lista de seções da minuta seguindo, no que já é coberto por esta ferramenta, a
 // estrutura modular de 15 seções do CPC (arts. 335 a 342): 1-4 (endereçamento, identificação
 // do processo e qualificação do réu) ficam no preâmbulo fixo do próprio documento (ver
@@ -1359,7 +1389,9 @@ function montarSecoes(c){
     secoes.push({ t: `Mérito: Tese cadastrada: ${t.pedido}`, b: t.modeloTese });
   });
   tesesSistemaAplicaveis.forEach(t=>{
-    secoes.push({ t: `Mérito: Tese padrão do sistema: ${t.causaRaiz}`, b: t.teseDefensiva });
+    // c.teseTextoOverride: ajuste do operador ao texto da tese para os fatos deste caso
+    // específico, feito no painel "Tese aplicável" — nunca altera o banco de 286 teses.
+    secoes.push({ t: `Mérito: Tese padrão do sistema: ${t.causaRaiz}`, b: c.teseTextoOverride || t.teseDefensiva });
   });
 
   secoes.push({ t: 'Impugnação específica dos pedidos: repetição dos descontos', b: BLOCOS_FIXOS.meritoRepeticao });
@@ -2532,6 +2564,7 @@ async function handleFile(file){
     baixadoEm: null,
     variacaoModelo: 'completo',
     reconvencaoTexto: '',
+    teseTextoOverride: null,
   };
   cases.unshift(caseObj);
   renderFila();
@@ -2818,6 +2851,7 @@ function renderGeracao(id){
       </div>
       <div class="callout" style="margin:0;">Ao rodar, refaz a extração usando o texto da petição inicial somado ao dos documentos já classificados como "Documento do autor". Útil depois de anexar e classificar documentos que não estavam disponíveis na primeira leitura. Ausências continuam marcadas como "não localizado" — nunca inventadas.</div>
     </div>
+    ${teseAplicavelHtml(c)}
     ${estruturaModularHtml(c)}
     ${pipelineAnaliseHtml(c)}
     <div class="gen-shell">
@@ -2837,11 +2871,6 @@ function renderGeracao(id){
         <div class="ev-card"><span class="ev-type">réu</span><div class="ev-title">${f.reu}</div>${campoAlertaHtml(f.reu)}</div>
         <div class="ev-card"><span class="ev-type">valor da causa</span><div class="ev-title">${f.valorCausa}</div>${campoAlertaHtml(f.valorCausa)}</div>
         <div class="ev-card"><span class="ev-type">tema sugerido</span><div class="ev-title">${f.tema}</div><div class="ev-body">Sugestão automática. Revisar antes de prosseguir.</div>${campoAlertaHtml(f.tema)}</div>
-        <div class="ev-card">
-          <span class="ev-type">causa raiz</span>
-          ${causaRaizSelectHtml(f)}
-          <div class="ev-body" style="margin-top:6px;">Motivo central da demanda. Sugerido automaticamente quando a extração é feita por IA; o operador pode corrigir aqui. Usado para casar com o Banco de teses padrão do sistema.</div>
-        </div>
         <div class="ev-card">
           <span class="ev-type">prazo processual (estimativa)</span>
           <div class="f-row4" style="grid-template-columns:1fr 90px; margin-top:8px; margin-bottom:6px;">
@@ -2923,8 +2952,16 @@ function renderGeracao(id){
   if(causaRaizSelect){
     causaRaizSelect.addEventListener('change', e=>{
       f.causaRaiz = e.target.value;
+      c.teseTextoOverride = null; // troca de causa raiz invalida o ajuste de texto da tese anterior
       salvarEstado();
       renderGeracao(id);
+    });
+  }
+  const teseTextoInput = document.getElementById('teseTextoInput');
+  if(teseTextoInput){
+    teseTextoInput.addEventListener('change', e=>{
+      c.teseTextoOverride = e.target.value;
+      salvarEstado();
     });
   }
   function atualizarPrazoGeracao(){
