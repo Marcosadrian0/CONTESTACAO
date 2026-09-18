@@ -2743,8 +2743,15 @@ function estruturaModularHtml(c){
     <td>${estadoSecaoCpc(row, secoesGeradas)}</td>
   </tr>`).join('');
   return `<div class="card">
-    <div class="row between" style="margin-bottom:14px; flex-wrap:wrap;">
+    <div class="row between" style="margin-bottom:14px; flex-wrap:wrap; gap:12px;">
       <div class="section-title">Estrutura modular da contestação</div>
+      <div style="min-width:230px;">
+        <span class="ev-type">variação do modelo</span>
+        <select id="variacaoModeloSelect" class="f-input" style="margin:4px 0 0; width:auto; padding:6px 10px; font-size:12px;">
+          <option value="completo" ${(c.variacaoModelo||'completo')==='completo'?'selected':''}>Completo (justiça comum, casos complexos)</option>
+          <option value="objetivo" ${c.variacaoModelo==='objetivo'?'selected':''}>Objetivo (Juizado Especial, causa documental simples)</option>
+        </select>
+      </div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>#</th><th>Seção</th><th>Comportamento</th><th>Controle</th><th>Estado</th></tr></thead>
@@ -2850,45 +2857,33 @@ function renderGeracao(id){
       </div>
       <div class="callout" style="margin:0;">Ao rodar, refaz a extração usando o texto da petição inicial somado ao dos documentos já classificados como "Documento do autor". Útil depois de anexar e classificar documentos que não estavam disponíveis na primeira leitura. Ausências continuam marcadas como "não localizado" — nunca inventadas.</div>
     </div>
-    ${teseAplicavelHtml(c)}
     ${estruturaModularHtml(c)}
     ${pipelineAnaliseHtml(c)}
-      <div class="evidence-col" style="max-width:440px;">
-        <div class="evidence-head">Campos extraídos${c.source==='local' ? ' <span style="color:var(--amber); font-weight:600;">· extração local, conferir com atenção</span>' : ''}</div>
-        <div class="ev-card"><span class="ev-type">número cnj</span><div class="ev-title">${f.numeroCNJ}</div>${campoAlertaHtml(f.numeroCNJ)}</div>
-        <div class="ev-card"><span class="ev-type">autor</span><div class="ev-title">${f.autor}</div>${campoAlertaHtml(f.autor)}</div>
-        <div class="ev-card"><span class="ev-type">réu</span><div class="ev-title">${f.reu}</div>${campoAlertaHtml(f.reu)}</div>
-        <div class="ev-card"><span class="ev-type">valor da causa</span><div class="ev-title">${f.valorCausa}</div>${campoAlertaHtml(f.valorCausa)}</div>
-        <div class="ev-card"><span class="ev-type">tema sugerido</span><div class="ev-title">${f.tema}</div><div class="ev-body">Sugestão automática. Revisar antes de prosseguir.</div>${campoAlertaHtml(f.tema)}</div>
-        <div class="ev-card">
-          <span class="ev-type">prazo processual (estimativa)</span>
-          <div class="f-row4" style="grid-template-columns:1fr 90px; margin-top:8px; margin-bottom:6px;">
-            <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Data da citação/intimação</label><input class="f-input" style="margin-bottom:0" type="date" id="dataCitacaoInput" value="${c.dataCitacao || ''}"></div>
-            <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Dias úteis</label><input class="f-input" style="margin-bottom:0" type="number" min="1" id="prazoDiasInput" value="${c.prazoDias || 15}"></div>
-          </div>
-          <div class="ev-body" id="prazoResultado">${c.dataLimite ? `vence em ${new Date(c.dataLimite).toLocaleDateString('pt-BR')} (${diasUteisRestantes(c.dataLimite)}d úteis)` : 'informe a data da citação para calcular'}</div>
-          <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Estimativa por dias úteis (só desconta sábado e domingo, sem calendário de feriados forenses). Sempre conferir o prazo real no processo oficial.</div>
+    ${teseAplicavelHtml(c)}
+    <div class="card">
+      <div class="section-title" style="margin-bottom:14px;">Configurações da minuta</div>
+      ${f.source==='local' ? `<div class="callout" style="margin-bottom:14px;"><b>Extração local, conferir com atenção.</b> Sem IA disponível no momento da leitura, os campos extraídos automaticamente (aba "Documentos do processo" e "Extração de dados") podem vir incompletos ou incorretos — confira antes de gerar, ou use "Extrair dados da inicial e documentos" para tentar de novo.</div>` : ''}
+      <div class="ev-card">
+        <span class="ev-type">prazo processual (estimativa)</span>
+        <div class="f-row4" style="grid-template-columns:1fr 90px; margin-top:8px; margin-bottom:6px;">
+          <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Data da citação/intimação</label><input class="f-input" style="margin-bottom:0" type="date" id="dataCitacaoInput" value="${c.dataCitacao || ''}"></div>
+          <div><label style="font-size:10px; color:var(--ink-faint); display:block; margin-bottom:3px;">Dias úteis</label><input class="f-input" style="margin-bottom:0" type="number" min="1" id="prazoDiasInput" value="${c.prazoDias || 15}"></div>
         </div>
-        <div class="ev-card">
-          <span class="ev-type">padrão de documento (cliente)</span>
-          <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
-          <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
-        </div>
-        <div class="ev-card">
-          <span class="ev-type">variação do modelo</span>
-          <select id="variacaoModeloSelect" class="f-input" style="margin:8px 0 0;">
-            <option value="completo" ${(c.variacaoModelo||'completo')==='completo'?'selected':''}>Completo (justiça comum, casos complexos)</option>
-            <option value="objetivo" ${c.variacaoModelo==='objetivo'?'selected':''}>Objetivo (Juizado Especial, causa documental simples)</option>
-          </select>
-          <div class="ev-body">No modelo Completo, a seção "Preliminares processuais" sempre aparece, com a nota de que não há preliminares identificadas quando for o caso. No Objetivo, a seção só aparece quando há preliminar real (ex.: tutela de urgência), para uma minuta mais enxuta.</div>
-        </div>
-        <div class="ev-card">
-          <span class="ev-type">reconvenção (opcional)</span>
-          <textarea class="f-input" id="reconvencaoInput" rows="3" placeholder="Preencha só se a instituição ré pretende apresentar reconvenção. O texto entra, exatamente como escrito aqui, como seção final da minuta." style="margin-top:8px;">${c.reconvencaoTexto || ''}</textarea>
-          <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Pedido independente contra a parte autora — a ferramenta nunca redige uma reconvenção sozinha, precisa ser escrita por um advogado. Deixe em branco para não incluir esta seção.</div>
-        </div>
-        <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="width:100%; justify-content:center; margin-top:4px;">${genLabel}</button>
+        <div class="ev-body" id="prazoResultado">${c.dataLimite ? `vence em ${new Date(c.dataLimite).toLocaleDateString('pt-BR')} (${diasUteisRestantes(c.dataLimite)}d úteis)` : 'informe a data da citação para calcular'}</div>
+        <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Estimativa por dias úteis (só desconta sábado e domingo, sem calendário de feriados forenses). Sempre conferir o prazo real no processo oficial.</div>
       </div>
+      <div class="ev-card">
+        <span class="ev-type">padrão de documento (cliente)</span>
+        <select id="clienteSelect" class="f-input" style="margin:8px 0 0;">${clienteOptions}</select>
+        <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
+      </div>
+      <div class="ev-card">
+        <span class="ev-type">reconvenção (opcional)</span>
+        <textarea class="f-input" id="reconvencaoInput" rows="3" placeholder="Preencha só se a instituição ré pretende apresentar reconvenção. O texto entra, exatamente como escrito aqui, como seção final da minuta." style="margin-top:8px;">${c.reconvencaoTexto || ''}</textarea>
+        <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Pedido independente contra a parte autora — a ferramenta nunca redige uma reconvenção sozinha, precisa ser escrita por um advogado. Deixe em branco para não incluir esta seção.</div>
+      </div>
+    </div>
+    <button class="btn-generate" id="genBtn" ${gerando?'disabled':''} style="width:100%; justify-content:center;">${genLabel}</button>
     ${c.contestacao ? renderContestacaoBlock(c) : ''}`;
   document.getElementById('backToFila').addEventListener('click', ()=>{ goView('fila'); renderFila(); });
   document.getElementById('excluirProcessoBtn').addEventListener('click', ()=>excluirProcesso(id));
