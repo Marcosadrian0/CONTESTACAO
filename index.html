@@ -631,9 +631,8 @@ html[data-theme="dark"] .auth-screen{
   <!-- ============ PADRÕES POR CLIENTE ============ -->
   <section class="view" id="view-padroes">
     <div class="view-head">
-      <div class="kicker">Identidade visual do documento gerado</div>
-      <h1>Cada cliente com o padrão que pediu</h1>
-      <p>Cadastre logo e margens por cliente. Na hora de gerar ou baixar a contestação, escolha o padrão a aplicar: alguns clientes querem logo e margem específica, outros só a logo, outros nenhum dos dois. O formulário já mostra, ao lado, uma prévia em escala real do modelo completo de documento, mesmo antes de qualquer processo real ser carregado.</p>
+      <h1>Padrões</h1>
+      <p>Defesa de banco em ações de consignado, linha Agibank</p>
     </div>
     <div id="padroesBody"></div>
   </section>
@@ -850,7 +849,7 @@ function logout(){
   modoSomenteLeitura = false;
   empresaAtivaAdmin = null;
   empresasCache = [];
-  cases = []; analyses = []; clientes = []; teses = []; tesesSistemaOcultas = [];
+  cases = []; analyses = []; clientes = []; teses = []; tesesSistemaOcultas = []; modelosContestacao = [];
   limparSessao();
   showLogin();
 }
@@ -1094,6 +1093,8 @@ let clientes = [];
 let clienteSeq = 1;
 let teses = [];
 let teseSeq = 1;
+let modelosContestacao = [];
+let modeloSeq = 1;
 
 // Banco de teses padrão do sistema: 286 teses reais (matriz causa raiz x produto),
 // carregadas de um arquivo estático (data/teses-sistema.json), iguais para todas as
@@ -1143,7 +1144,7 @@ async function carregarEmpresas(){
 
 function salvarEstado(){
   if(modoSomenteLeitura) return; // "todas as empresas": nada para gravar, ver restaurarEstado
-  const dados = { cases, analyses, idSeq, clientes, clienteSeq, teses, teseSeq, tesesSistemaOcultas };
+  const dados = { cases, analyses, idSeq, clientes, clienteSeq, teses, teseSeq, tesesSistemaOcultas, modelosContestacao, modeloSeq };
   const body = { action:'salvar', dados };
   if(currentUser && currentUser.papel==='admin' && empresaAtivaAdmin && empresaAtivaAdmin!=='todas'){
     body.empresaId = empresaAtivaAdmin;
@@ -1166,7 +1167,7 @@ async function restaurarEstado(){
 
     if(data.modo === 'todas'){
       modoSomenteLeitura = true;
-      cases = []; analyses = []; clientes = []; teses = []; tesesSistemaOcultas = [];
+      cases = []; analyses = []; clientes = []; teses = []; tesesSistemaOcultas = []; modelosContestacao = [];
       let maxIdSeq=1, maxClienteSeq=1, maxTeseSeq=1;
       (data.empresas||[]).forEach(e=>{
         const d = e.dados || {};
@@ -1188,9 +1189,11 @@ async function restaurarEstado(){
       clientes = Array.isArray(d.clientes) ? d.clientes : [];
       teses = Array.isArray(d.teses) ? d.teses : [];
       tesesSistemaOcultas = Array.isArray(d.tesesSistemaOcultas) ? d.tesesSistemaOcultas : [];
+      modelosContestacao = Array.isArray(d.modelosContestacao) ? d.modelosContestacao : [];
       idSeq = typeof d.idSeq === 'number' ? d.idSeq : 1;
       clienteSeq = typeof d.clienteSeq === 'number' ? d.clienteSeq : 1;
       teseSeq = typeof d.teseSeq === 'number' ? d.teseSeq : 1;
+      modeloSeq = typeof d.modeloSeq === 'number' ? d.modeloSeq : 1;
     }
 
     cases.forEach(c=>{
@@ -1199,6 +1202,12 @@ async function restaurarEstado(){
         c.error = 'Leitura interrompida (página foi atualizada durante o processamento). Envie o arquivo novamente.';
       }
       if(c.genStatus==='gerando') c.genStatus = c.contestacao ? 'pronto' : null;
+    });
+    modelosContestacao.forEach(m=>{
+      if(m.status==='processando'){
+        m.status = 'erro';
+        m.erro = 'Leitura interrompida (página foi atualizada durante o processamento). Envie o arquivo novamente.';
+      }
     });
   }catch(e){
     console.warn('Não foi possível carregar os dados do servidor.', e);
@@ -1796,7 +1805,10 @@ function renderPadroes(){
           </div>
         </div>`).join('')}</div>`;
 
-  body.innerHTML = `<div class="client-shell">
+  body.innerHTML = `<div id="modelosContestacaoWrap"></div>
+  <div class="section-title" style="margin:24px 0 4px;">Identidade visual por cliente</div>
+  <div class="ev-body" style="margin-bottom:16px;">Cadastre logo e margens por cliente. Na hora de gerar ou baixar a contestação, escolha o padrão a aplicar: alguns clientes querem logo e margem específica, outros só a logo, outros nenhum dos dois. O formulário abaixo mostra, ao lado, uma prévia em escala real do modelo completo de documento, mesmo antes de qualquer processo real ser carregado.</div>
+  <div class="client-shell">
     <div class="client-form">
       <h3 id="clientFormTitle">Novo padrão de cliente</h3>
       <input type="hidden" id="clientEditId" value="">
@@ -2057,6 +2069,138 @@ function renderPadroes(){
       renderPadroes();
     });
   });
+
+  renderModelosContestacao();
+}
+
+// "Modelos de contestação": biblioteca de documentos-modelo desta empresa, separada dos
+// padrões visuais (logo/margens) acima. Cada modelo vem de um documento real enviado (PDF/
+// DOCX) — a IA identifica a estrutura (títulos e corpo de cada seção) e converte trechos
+// variáveis em campos dinâmicos {{assim}} — ou é criado em branco pelo operador. A estrutura
+// detectada fica disponível para revisão aqui; a aplicação automática desse modelo na geração
+// da minuta (em vez da estrutura padrão do sistema) ainda não existe nesta versão — ver aviso
+// no seletor da tela de Geração.
+function renderModelosContestacao(){
+  const wrap = document.getElementById('modelosContestacaoWrap');
+  if(!wrap) return;
+
+  const statusPill = m => m.status==='processando' ? '<span class="pill warn">analisando com IA…</span>'
+    : m.status==='erro' ? `<span class="pill risk">${m.erro || 'falha ao analisar'}</span>`
+    : m.secoesDetectadas ? '<span class="pill ok">estrutura detectada por IA</span>'
+    : '<span class="pill info">texto simples, sem estrutura detectada</span>';
+
+  const listaHtml = modelosContestacao.length === 0
+    ? `<div class="empty-state" style="padding:40px 20px;">
+        <span>Nenhum modelo salvo. Crie um novo ou envie um documento modelo.</span>
+      </div>`
+    : `<div class="client-list">${modelosContestacao.map(m => `
+        <div class="client-card">
+          <div class="client-card-head">
+            <div>
+              <div class="client-name">${m.nome}</div>
+              <div class="client-badges">
+                ${statusPill(m)}
+                ${(m.camposDinamicos||[]).slice(0,6).map(cp=>`<span class="client-badge off">{{${cp}}}</span>`).join('')}
+                ${(m.camposDinamicos||[]).length>6 ? `<span class="client-badge off">+${m.camposDinamicos.length-6}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          ${m.secoesDetectadas ? `<details style="margin:8px 0;">
+            <summary class="mini-btn" style="display:inline-flex; cursor:pointer;">Ver estrutura (${m.secoesDetectadas.length} seções)</summary>
+            <div class="ev-body mono" style="white-space:pre-wrap; margin-top:8px; padding:10px; background:var(--bg-raise-2); border-radius:8px; max-height:220px; overflow-y:auto; font-size:11px;">${m.secoesDetectadas.map(s=>`${s.titulo}\n${s.corpo}`).join('\n\n')}</div>
+          </details>` : `<div class="ev-body" style="margin:8px 0;">${(m.textoOriginal||'').slice(0,220)}${(m.textoOriginal||'').length>220?'…':''}</div>`}
+          <div class="client-actions">
+            <button class="mini-btn danger" data-del-modelo="${m.id}">Remover</button>
+          </div>
+        </div>`).join('')}</div>`;
+
+  wrap.innerHTML = `<div class="card">
+    <div class="row between" style="margin-bottom:14px; flex-wrap:wrap; gap:12px;">
+      <div>
+        <div class="section-title">Modelos de contestação</div>
+        <div class="ev-body" style="margin-top:2px;">Salve vários modelos e escolha qual usar em cada processo, na Geração.</div>
+      </div>
+      <div class="row" style="gap:8px;">
+        <button class="mini-btn" id="novoModeloBtn">+ Novo modelo</button>
+        <button class="btn-generate" id="enviarModeloBtn" style="width:auto; padding:9px 16px; font-size:12.5px;">Enviar (PDF / DOCX)</button>
+        <input type="file" id="modeloArquivoInput" accept=".pdf,.docx" style="display:none;">
+      </div>
+    </div>
+    ${listaHtml}
+    <div class="callout" style="margin-top:14px;">Ao enviar um documento, o conteúdo é analisado por IA no backend, que identifica a estrutura da peça e converte as informações variáveis em campos dinâmicos. Aqui o documento é registrado e um modelo estruturado editável é semeado para revisão.</div>
+  </div>`;
+
+  document.getElementById('novoModeloBtn').addEventListener('click', ()=>{
+    if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
+    const nome = prompt('Nome do novo modelo:');
+    if(!nome || !nome.trim()) return;
+    modelosContestacao.push({
+      id: modeloSeq++, nome: nome.trim(), origem: 'manual', arquivoNome: null,
+      textoOriginal: '', secoesDetectadas: null, camposDinamicos: [],
+      status: 'pronto', erro: null, criadoPor: currentUser ? currentUser.usuario : null, criadoEm: new Date(),
+    });
+    salvarEstado();
+    renderModelosContestacao();
+  });
+
+  document.getElementById('enviarModeloBtn').addEventListener('click', ()=>{
+    if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
+    document.getElementById('modeloArquivoInput').click();
+  });
+  document.getElementById('modeloArquivoInput').addEventListener('change', async e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    await enviarModeloContestacao(file);
+    e.target.value = '';
+  });
+
+  wrap.querySelectorAll('button[data-del-modelo]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(modoSomenteLeitura){ avisoSomenteLeitura(); return; }
+      if(!confirm('Remover este modelo de contestação?')) return;
+      modelosContestacao = modelosContestacao.filter(m=>m.id!==parseInt(btn.dataset.delModelo));
+      salvarEstado();
+      renderModelosContestacao();
+    });
+  });
+}
+
+// Lê o arquivo enviado (mesmos leitores usados na petição inicial e nos documentos de apoio),
+// salva o modelo já com o texto original, e manda para a IA identificar a estrutura. Se a IA
+// não estiver disponível, o modelo continua salvo com o texto original e um aviso — nunca com
+// uma estrutura fabricada.
+async function enviarModeloContestacao(file){
+  const modelo = {
+    id: modeloSeq++, nome: file.name, origem: 'upload', arquivoNome: file.name,
+    textoOriginal: '', secoesDetectadas: null, camposDinamicos: [],
+    status: 'processando', erro: null, criadoPor: currentUser ? currentUser.usuario : null, criadoEm: new Date(),
+  };
+  modelosContestacao.push(modelo);
+  salvarEstado();
+  renderModelosContestacao();
+
+  try{
+    const ext = file.name.split('.').pop().toLowerCase();
+    if(ext==='pdf') modelo.textoOriginal = await extractPdfText(file);
+    else if(ext==='docx') modelo.textoOriginal = await extractDocxText(file);
+    else throw new Error('formato não suportado, envie PDF ou DOCX');
+    if(!modelo.textoOriginal || !modelo.textoOriginal.trim()) throw new Error('não foi possível ler texto do arquivo (documento escaneado sem OCR?)');
+
+    const analise = await aiAnalisarModelo(modelo.textoOriginal);
+    if(analise){
+      modelo.secoesDetectadas = analise.secoes;
+      modelo.camposDinamicos = analise.camposDinamicos || [];
+      modelo.status = 'pronto';
+    } else {
+      modelo.status = 'erro';
+      modelo.erro = 'IA indisponível no momento — texto original salvo, revise a estrutura manualmente';
+    }
+  }catch(e){
+    modelo.status = 'erro';
+    modelo.erro = e.message || 'falha ao processar o documento';
+  }
+  salvarEstado();
+  renderModelosContestacao();
 }
 
 // Marca d'água (só na pré-visualização em tela/impressão; o .doc exportado usa uma versão
@@ -2444,6 +2588,31 @@ async function aiExtract(text){
     if(!data.text) throw new Error('sem resposta em texto');
     const clean = data.text.replace(/```json|```/g,'').trim();
     const parsed = JSON.parse(clean);
+    registrarChamadaIa(true, data.usage);
+    return parsed;
+  }catch(e){
+    registrarChamadaIa(false, null);
+    return null;
+  }
+}
+
+// Aba Padrões > "Modelos de contestação": envia o texto do documento enviado (PDF/DOCX) para
+// a IA identificar as seções e converter as partes variáveis em campos dinâmicos. Sem IA
+// disponível, retorna null — o modelo fica salvo com o texto original e um aviso, nunca com
+// uma estrutura inventada (ver enviarModeloContestacao).
+async function aiAnalisarModelo(texto){
+  try{
+    const resp = await fetch('/api/anthropic', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ task: 'modelo-estrutura', texto: texto.slice(0,12000) })
+    });
+    if(!resp.ok) throw new Error('api indisponível');
+    const data = await resp.json();
+    if(!data.text) throw new Error('sem resposta em texto');
+    const clean = data.text.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+    if(!Array.isArray(parsed.secoes)) throw new Error('formato inesperado');
     registrarChamadaIa(true, data.usage);
     return parsed;
   }catch(e){
@@ -3061,6 +3230,14 @@ function renderGeracao(id){
             <div class="ev-body">Define logo e margens do .doc gerado. Cadastre ou edite padrões na aba Padrões por cliente.</div>
           </div>
           <div class="ev-card">
+            <span class="ev-type">modelo de contestação enviado (opcional)</span>
+            <select id="modeloContestacaoSelect" class="f-input" style="margin:8px 0 0;">
+              <option value="">Nenhum (usar estrutura padrão do sistema, acima)</option>
+              ${modelosContestacao.filter(m=>m.status==='pronto').map(m=>`<option value="${m.id}" ${c.modeloContestacaoId===m.id?'selected':''}>${m.nome}</option>`).join('')}
+            </select>
+            <div class="ev-body">Modelos cadastrados na aba Padrões, com a estrutura identificada por IA. ${c.modeloContestacaoId ? '<b>Só para revisão nesta versão:</b> a minuta gerada abaixo continua usando a estrutura padrão do sistema — a aplicação automática deste modelo na geração ainda não existe.' : ''}</div>
+          </div>
+          <div class="ev-card">
             <span class="ev-type">reconvenção (opcional)</span>
             <textarea class="f-input" id="reconvencaoInput" rows="3" placeholder="Preencha só se a instituição ré pretende apresentar reconvenção. O texto entra, exatamente como escrito aqui, como seção final da minuta." style="margin-top:8px;">${c.reconvencaoTexto || ''}</textarea>
             <div class="ev-body" style="margin-top:4px; color:var(--ink-faint);">Pedido independente contra a parte autora — a ferramenta nunca redige uma reconvenção sozinha, precisa ser escrita por um advogado. Deixe em branco para não incluir esta seção.</div>
@@ -3115,6 +3292,11 @@ function renderGeracao(id){
   document.getElementById('clienteSelect').addEventListener('change', e=>{
     c.clienteId = e.target.value ? parseInt(e.target.value) : null;
     salvarEstado();
+  });
+  document.getElementById('modeloContestacaoSelect').addEventListener('change', e=>{
+    c.modeloContestacaoId = e.target.value ? parseInt(e.target.value) : null;
+    salvarEstado();
+    renderGeracao(id); // reflete o aviso de "só para revisão" no corpo do próprio select
   });
   document.getElementById('variacaoModeloSelect').addEventListener('change', e=>{
     c.variacaoModelo = e.target.value;

@@ -64,8 +64,26 @@ export default async function handler(req, res) {
       'Responda SOMENTE com o texto traduzido, sem markdown, sem comentários. ' +
       'Texto original: ' + (texto || '').slice(0, 20000);
 
+  } else if (task === 'modelo-estrutura') {
+    // Aba Padrões > "Modelos de contestação": o usuário envia uma contestação real já usada
+    // pelo escritório/cliente, e aqui identificamos a estrutura (títulos e corpo de cada
+    // seção, na ordem em que aparecem) e convertemos os trechos variáveis (nome das partes,
+    // número do processo, valor da causa etc.) em campos dinâmicos {{assim}}, mantendo o
+    // texto fixo (teses, fundamentação, blocos padrão) exatamente como está no documento
+    // original — nunca reescrevemos ou resumimos o conteúdo jurídico.
+    const texto = (req.body.texto || '').slice(0, 12000);
+    maxTokens = 3000;
+    prompt =
+      'Você é um assistente jurídico interno. Leia o documento de contestação abaixo e responda SOMENTE com um JSON válido, sem markdown e sem texto fora do JSON, no formato exato: ' +
+      '{"secoes":[{"titulo":"","corpo":""}],"camposDinamicos":[""]}. ' +
+      '"secoes" é a lista de seções do documento, na mesma ordem em que aparecem, cada uma com o título (ex.: "DOS FATOS", "DO DIREITO") e o corpo do texto daquela seção. ' +
+      'Dentro do campo "corpo" de cada seção, substitua toda informação que varia de processo para processo (nome do autor, nome do réu, número do processo/CNJ, valor da causa, datas, nomes de produtos específicos citados, valores em dinheiro específicos do caso) por um campo dinâmico no formato {{nomeDoCampo}}, em camelCase, reaproveitando o MESMO nome de campo sempre que a mesma informação se repetir no documento. NÃO transforme em campo dinâmico o texto jurídico fixo (teses, fundamentação legal, citações de lei ou jurisprudência, argumentação): mantenha esse texto exatamente como está escrito no documento original, sem resumir, reescrever ou traduzir. ' +
+      '"camposDinamicos" é a lista (sem repetição) de todos os nomes de campo usados em "corpo" nas seções, sem as chaves duplas. ' +
+      'Se não for possível identificar nenhuma seção clara, retorne uma única seção com título "Documento" e o texto completo no corpo, e "camposDinamicos" como lista vazia. ' +
+      'Documento: ' + texto;
+
   } else {
-    res.status(400).json({ error: 'Campo "task" inválido ou ausente. Use "extract", "regularidade" ou "traduzir".' });
+    res.status(400).json({ error: 'Campo "task" inválido ou ausente. Use "extract", "regularidade", "traduzir" ou "modelo-estrutura".' });
     return;
   }
 
