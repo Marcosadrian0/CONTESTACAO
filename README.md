@@ -108,7 +108,7 @@ Como funciona, tecnicamente:
   automaticamente no primeiro uso — mesmo ele precisa de uma empresa "dona" dos
   próprios dados de teste.
 - `api/dados.js` (nova função) passou a guardar fila, análises, Banco de teses e
-  Padrões por cliente num Postgres compartilhado, numa tabela `estado_empresa` (uma
+  Modelos de contestação num Postgres compartilhado, numa tabela `estado_empresa` (uma
   linha por empresa, com todo o estado num campo JSONB). Antes, esses dados viviam só
   no `localStorage` do navegador — sem checagem alguma de quem podia ver o quê. Agora
   a segregação é aplicada no servidor, a partir do `empresa_id` do token de sessão, não
@@ -218,13 +218,12 @@ gerada (`.page-preview`/`.doc-frame`) continua com fonte serifada de propósito:
 ela simula um documento que vai a protocolo em juízo, não um material da SBK, e
 segue a convenção tipográfica de peça jurídica, não a identidade de marca da
 ferramenta que a gera — a mesma distinção vale para o `.doc` exportado, cuja fonte
-padrão (Times New Roman, configurável por cliente em Padrões por cliente) segue
-convenção de documento jurídico, não a marca.
+padrão (Times New Roman) segue convenção de documento jurídico, não a marca.
 
 Navegação em barra lateral fixa à esquerda (`.shell` > `.side` + `.main-col`),
 seguindo o layout de referência do protótipo interativo recebido do cliente
 (`motor-contestacoesv05_2.html`): marca e abas (Fila, Geração, Banco de teses,
-Análises, Padrões por cliente, Admin) na lateral, com indicador de aba ativa;
+Análises, Padrões, Admin) na lateral, com indicador de aba ativa;
 seletor de empresa, selo "dados salvos" e usuário logado no rodapé da lateral;
 alternância de tema no topo do conteúdo principal. Em telas estreitas (≤980px),
 a lateral vira uma faixa horizontal no topo, com os mesmos elementos.
@@ -345,9 +344,6 @@ a lateral vira uma faixa horizontal no topo, com os mesmos elementos.
   português.
 - Download da minuta em `.doc` (HTML compatível com Word) e opção de imprimir
   direto para PDF pelo navegador.
-- Padrões de documento por cliente: cabeçalho "montado" no sistema (tarja
-  colorida, pontinhos decorativos, logo) ou "anexado" como imagem pronta, mais
-  margens personalizadas por cliente, aplicados de verdade no `.doc` gerado.
 - Aba Padrões > "Modelos de contestação": biblioteca de documentos-modelo desta
   empresa, no layout de referência do cliente. "+ Novo modelo" cria um modelo em
   branco (nome escolhido pelo operador); "Enviar (PDF / DOCX)" lê o texto real
